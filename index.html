@@ -835,8 +835,8 @@
       return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
-      selectedZone = localStorage.getItem('selectedZone') || 'LIMA';
+    document.addEventListener('DOMContentLoaded', async function() { // <-- async aquí
+    selectedZone = (await StorageService.load('selectedZone')) || 'LIMA';
       document.getElementById(`zone-${selectedZone.toLowerCase()}`).checked = true;
       if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
         Notification.requestPermission();
@@ -890,7 +890,7 @@
         if (toggle) {
           toggle.checked = localStorage.getItem(id) === 'true';
           updateFormatToggleLabel(toggle);
-          toggle.addEventListener('change', function() {
+          toggle.addEventListener('change', async function() { // <-- async aquí
             localStorage.setItem(id, this.checked);
             updateFormatToggleLabel(this);
             renderMarkers();
@@ -904,6 +904,7 @@
                   label.classList.toggle(cls, localStorage.getItem(toggleId) === 'true');
                 }
               });
+              await StorageService.save(id, this.checked); // <-- await aquí
             });
           });
         }
@@ -1186,7 +1187,7 @@
       }, 1000);
     }
 
-    function deleteRecord(recordId) {
+    async function deleteRecord(recordId) { // <-- async aquí
       showLoading(true);
       setTimeout(() => {
         const isManualCoord = customCoords.some(c => c.id === recordId);
@@ -1205,6 +1206,7 @@
         showLoading(false);
         alert("Registro eliminado correctamente");
       }, 500);
+      await StorageService.save(`records_${selectedZone}`, allRecords); // <-- await aquí
     }
 
     function populateFilters() {
@@ -1690,7 +1692,7 @@
       alert('Observación guardada correctamente');
     }
 
-    function updateRecordTechnician(recordId, newTech) {
+    async function updateRecordTechnician(recordId, newTech) { // <-- async aquí
       const idx = allRecords.findIndex(r => r.id === recordId);
       if (idx === -1) return;
       allRecords[idx].Tecnico = newTech;
@@ -1699,6 +1701,7 @@
       updateStatistics();
       showRecordDetails(allRecords[idx]);
       renderTechnicianSummary();
+      await StorageService.save(`records_${selectedZone}`, allRecords); // <-- await aquí
     }
 
     function downloadRecordsAsExcel() {
@@ -2438,4 +2441,5 @@
   ```
   <div id="context-menu" class="context-menu"></div>
 </body>
+
 </html>
