@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Tecsycom</title>
   <!-- Add favicon -->
-  <link rel="icon" href="https://cdn-icons-png.flaticon.com/128/1865/1865269.png" type="image/x-icon">
+  <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/7630/7630927.png" type="image/x-icon">
   <!-- Librerías CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -34,9 +34,8 @@
   const db = getDatabase(app);
   
   // Auth state
-  let isAuthenticated = false;
-  let authCheckComplete = false;
-  
+  let isAuthenticated = true;
+    
   // Export to window for global access
   window.firebaseApp = app;
   window.firebaseDB = db;
@@ -46,11 +45,7 @@
   
   // Save data to Firebase
   async function saveToFirebase(path, data) {
-    if (!isAuthenticated) {
-      console.warn('No autenticado - guardando solo en localStorage');
-      return false;
-    }
-    try {
+try {
       const dbRef = ref(db, path);
       await set(dbRef, data);
       console.log(`Guardado en Firebase: ${path}`);
@@ -94,64 +89,39 @@
     off(dbRef);
   }
   
-  // Simple login with password
+      // Login (compatibilidad): siempre habilitado para edici�n compartida en Firebase
   async function login(password) {
-    try {
-      // Check password in Firebase
-      const passwordRef = ref(db, 'admin_password');
-      const snapshot = await get(passwordRef);
-      const storedPassword = snapshot.exists() ? snapshot.val() : 'admin123';
-      
-      if (password === storedPassword) {
-        isAuthenticated = true;
-        localStorage.setItem('firebase_auth', 'true');
-        updateAuthUI(true);
-        console.log('Login exitoso');
-        return true;
-      }
-      console.warn('Password incorrecto');
-      return false;
-    } catch (error) {
-      console.error('Error en login:', error);
-      return false;
-    }
+    isAuthenticated = true;
+    updateAuthUI(true);
+    return true;
   }
   
-  // Logout
+  // Logout deshabilitado: se mantiene sesi�n de edici�n compartida
   function logout() {
-    isAuthenticated = false;
-    localStorage.removeItem('firebase_auth');
-    updateAuthUI(false);
-    console.log('Logout realizado');
+    isAuthenticated = true;
+    updateAuthUI(true);
   }
-  
+
   // Update auth UI
   function updateAuthUI(authenticated) {
     const loginSection = document.getElementById('login-section');
     const authStatus = document.getElementById('auth-status');
     const logoutBtn = document.getElementById('logout-btn');
-    
-    if (authenticated) {
-      if (loginSection) loginSection.style.display = 'none';
-      if (authStatus) {
-        authStatus.innerHTML = '<span class="badge bg-success"><i class="fas fa-check-circle"></i> Conectado</span>';
-      }
-      if (logoutBtn) logoutBtn.style.display = 'inline-block';
-    } else {
-      if (loginSection) loginSection.style.display = 'block';
-      if (authStatus) {
-        authStatus.innerHTML = '<span class="badge bg-secondary"><i class="fas fa-eye"></i> Solo lectura</span>';
-      }
-      if (logoutBtn) logoutBtn.style.display = 'none';
+    const syncSection = document.getElementById('sync-section');
+
+    if (loginSection) loginSection.style.display = 'none';
+    if (logoutBtn) logoutBtn.style.display = 'none';
+    if (syncSection) syncSection.style.display = 'none';
+    if (authStatus) {
+      authStatus.innerHTML = '<span class="badge bg-success"><i class="fas fa-cloud"></i> Firebase compartido</span>';
     }
-    
-    // Dispatch event for other components
-    window.dispatchEvent(new CustomEvent('authStateChanged', { detail: { authenticated } }));
+
+    window.dispatchEvent(new CustomEvent('authStateChanged', { detail: { authenticated: true } }));
   }
-  
+
   // Sync local data to Firebase
   async function syncLocalToFirebase() {
-    if (!isAuthenticated) return;
+
     
     try {
       // Sync records for both zones
@@ -236,14 +206,10 @@
     }
   }
   
-  // Initialize Firebase auth from localStorage
+    // Initialize Firebase shared mode
   function initAuth() {
-    const storedAuth = localStorage.getItem('firebase_auth');
-    if (storedAuth === 'true') {
-      isAuthenticated = true;
-    }
-    authCheckComplete = true;
-    updateAuthUI(isAuthenticated);
+    isAuthenticated = true;
+    updateAuthUI(true);
   }
   
   // Export functions globally
@@ -706,28 +672,11 @@
         <h4 class="mb-3"><i class="fas fa-map"></i> Michell Sulca.V</h4>
         <!-- Firebase Auth UI -->
         <div id="auth-status" class="mb-2">
-          <span class="badge bg-secondary"><i class="fas fa-eye"></i> Solo lectura</span>
+          <span class="badge bg-success"><i class="fas fa-cloud"></i> Firebase compartido</span>
         </div>
-        <div id="login-section" class="mb-3 p-3 border rounded bg-light">
-          <h6><i class="fas fa-lock"></i> Acceso Admin</h6>
-          <div class="input-group input-group-sm">
-            <input type="password" id="login-password" class="form-control" placeholder="Contraseña">
-            <button id="login-btn" class="btn btn-primary">Login</button>
-          </div>
-          <small class="text-muted">Ingresa para editar datos</small>
-        </div>
-        <button id="logout-btn" class="btn btn-outline-danger btn-sm mb-3" style="display:none;">
-          <i class="fas fa-sign-out-alt"></i> Logout
-        </button>
-        <!-- Sync buttons -->
-        <div id="sync-section" class="mb-3">
-          <button id="sync-to-firebase" class="btn btn-outline-primary btn-sm me-1" title="Sincronizar local → Firebase">
-            <i class="fas fa-cloud-upload-alt"></i> Subir
-          </button>
-          <button id="sync-from-firebase" class="btn btn-outline-secondary btn-sm" title="Sincronizar Firebase → local">
-            <i class="fas fa-cloud-download-alt"></i> Descargar
-          </button>
-        </div>
+                <div id="login-section" style="display:none;"></div>
+        <button id="logout-btn" style="display:none;"></button>
+        <div id="sync-section" style="display:none;"></div>
         <!-- ADD: summary of records without a technician -->
         <div id="no-tech-summary" class="mb-3 text-muted">
           <!-- filled by JS: e.g. "Sin técnico: 5 registros" -->
@@ -1079,86 +1028,7 @@
       if (typeof window.firebaseInitAuth === 'function') {
         window.firebaseInitAuth();
       }
-      
-      // Login button handler
-      const loginBtn = document.getElementById('login-btn');
-      if (loginBtn) {
-        loginBtn.addEventListener('click', async function() {
-          const password = document.getElementById('login-password').value;
-          if (!password) {
-            alert('Ingrese una contraseña');
-            return;
-          }
-          if (typeof window.firebaseLogin === 'function') {
-            const success = await window.firebaseLogin(password);
-            if (success) {
-              alert('Login exitoso');
-              document.getElementById('login-password').value = '';
-            } else {
-              alert('Contraseña incorrecta');
-            }
-          }
-        });
-      }
-      
-      // Enter key for login
-      const loginInput = document.getElementById('login-password');
-      if (loginInput) {
-        loginInput.addEventListener('keypress', async function(e) {
-          if (e.key === 'Enter') {
-            loginBtn.click();
-          }
-        });
-      }
-      
-      // Logout button handler
-      const logoutBtn = document.getElementById('logout-btn');
-      if (logoutBtn) {
-        logoutBtn.addEventListener('click', function() {
-          if (typeof window.firebaseLogout === 'function') {
-            window.firebaseLogout();
-          }
-        });
-      }
-      
-      // Sync to Firebase button
-      const syncToBtn = document.getElementById('sync-to-firebase');
-      if (syncToBtn) {
-        syncToBtn.addEventListener('click', async function() {
-          if (typeof window.firebaseSyncTo === 'function') {
-            await window.firebaseSyncTo();
-            alert('Datos sincronizados a Firebase');
-          }
-        });
-      }
-      
-      // Sync from Firebase button
-      const syncFromBtn = document.getElementById('sync-from-firebase');
-      if (syncFromBtn) {
-        syncFromBtn.addEventListener('click', async function() {
-          if (confirm('Esto sobrescribirá los datos locales con los de Firebase. ¿Continuar?')) {
-            if (typeof window.firebaseSyncFrom === 'function') {
-              await window.firebaseSyncFrom();
-              // Reload zone data
-              selectedZone = localStorage.getItem('selectedZone') || 'LIMA';
-              loadZoneData(selectedZone);
-              alert('Datos sincronizados desde Firebase');
-            }
-          }
-        });
-      }
-      
-      // Listen for auth state changes
-      window.addEventListener('authStateChanged', function(e) {
-        if (e.detail.authenticated) {
-          // Auto-sync when authenticated
-          if (typeof window.firebaseSyncFrom === 'function') {
-            window.firebaseSyncFrom();
-          }
-        }
-      });
-      
-      selectedZone = localStorage.getItem('selectedZone') || 'LIMA';
+selectedZone = localStorage.getItem('selectedZone') || 'LIMA';
       document.getElementById(`zone-${selectedZone.toLowerCase()}`).checked = true;
       if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
         Notification.requestPermission();
@@ -1283,6 +1153,9 @@
           "K30 JHONATHAN CAMACHO"
           ];
          localStorage.setItem('technicianList', JSON.stringify(technicianList));
+          if (typeof window.firebaseSave === 'function') {
+            window.firebaseSave('technicianList', technicianList);
+          }
       }
 
       // Add document click listener to close context menu
@@ -1323,67 +1196,54 @@
       return false;
     }
 
-    function loadZoneData(zone) {
+        async function loadZoneData(zone) {
       showLoading(true);
-      
-      // Try to load from Firebase first if authenticated
-      const checkAuthAndLoad = async () => {
-        const isAuth = window.firebaseAuth && window.firebaseAuth.isAuthenticated ? window.firebaseAuth.isAuthenticated() : false;
-        
-        if (isAuth && typeof window.firebaseLoad === 'function') {
-          // Load from Firebase
-          const recordsKey = `records/${zone}`;
-          const coordsKey = `coords/${zone}`;
-          
-          if (typeof window.firebaseLoad === 'function') {
-            window.firebaseLoad(recordsKey, (data) => {
-              if (data && data.length > 0) {
-                allRecords = data;
-                localStorage.setItem(`records_${zone}`, JSON.stringify(allRecords));
-              } else {
-                // Fallback to localStorage
-                const storedRecords = localStorage.getItem(`records_${zone}`);
-                allRecords = storedRecords ? JSON.parse(storedRecords) : [];
-              }
-            });
-            
-            window.firebaseLoad(coordsKey, (data) => {
-              if (data && data.length > 0) {
-                customCoords = data;
-                localStorage.setItem(`customCoords_${zone}`, JSON.stringify(customCoords));
-              } else {
-                // Fallback to localStorage
-                const savedCoords = localStorage.getItem(`customCoords_${zone}`);
-                customCoords = savedCoords ? JSON.parse(savedCoords) : [];
-              }
-              
-              populateFilters();
-              renderMarkers();
-              updateStatistics();
-              renderCustomCoordsList();
-              showLoading(false);
-            });
-            return;
+      try {
+        const recordsKey = `records/${zone}`;
+        const coordsKey = `coords/${zone}`;
+        const recordsData = (typeof window.firebaseLoad === 'function') ? await window.firebaseLoad(recordsKey) : null;
+        const coordsData = (typeof window.firebaseLoad === 'function') ? await window.firebaseLoad(coordsKey) : null;
+        const firebaseTechImages = (typeof window.firebaseLoad === 'function') ? await window.firebaseLoad('techImages') : null;
+        const firebaseTechList = (typeof window.firebaseLoad === 'function') ? await window.firebaseLoad('technicianList') : null;
+        const firebaseDeleted = (typeof window.firebaseLoad === 'function') ? await window.firebaseLoad('deletedRecords') : null;
+
+        allRecords = Array.isArray(recordsData) ? recordsData : [];
+        customCoords = Array.isArray(coordsData) ? coordsData : [];
+
+        localStorage.setItem(`records_${zone}`, JSON.stringify(allRecords));
+        localStorage.setItem(`customCoords_${zone}`, JSON.stringify(customCoords));
+
+        if (firebaseTechImages && typeof firebaseTechImages === 'object') {
+          techImages = firebaseTechImages;
+          localStorage.setItem('techImages', JSON.stringify(techImages));
+        }
+        if (Array.isArray(firebaseTechList) && firebaseTechList.length > 0) {
+          technicianList = firebaseTechList;
+          localStorage.setItem('technicianList', JSON.stringify(technicianList));
+          if (typeof window.firebaseSave === 'function') {
+            window.firebaseSave('technicianList', technicianList);
           }
         }
-        
-        // Fallback to localStorage only
-        const storedRecords = localStorage.getItem(`records_${zone}`);
-        allRecords = storedRecords ? JSON.parse(storedRecords) : [];
+        if (firebaseDeleted && typeof firebaseDeleted === 'object') {
+          localStorage.setItem('deletedRecordsByCategory', JSON.stringify(firebaseDeleted));
+        }
+
         if (allRecords.length === 0) {
           fetchRecords();
           return;
         }
-        const savedCoords = localStorage.getItem(`customCoords_${zone}`);
-        customCoords = savedCoords ? JSON.parse(savedCoords) : [];
+
         populateFilters();
         renderMarkers();
         updateStatistics();
         renderCustomCoordsList();
         showLoading(false);
-      };
-      
-      checkAuthAndLoad();
+      } catch (error) {
+        console.error('Error cargando datos desde Firebase:', error);
+        allRecords = [];
+        customCoords = [];
+        fetchRecords();
+      }
     }
 
     function initMap() {
@@ -1551,8 +1411,7 @@
         localStorage.setItem(`records_${selectedZone}`, JSON.stringify(allRecords));
         
         // Save to Firebase if authenticated
-        const isAuth = window.firebaseAuth && window.firebaseAuth.isAuthenticated ? window.firebaseAuth.isAuthenticated() : false;
-        if (isAuth && typeof window.firebaseSave === 'function') {
+        if (typeof window.firebaseSave === 'function') {
           window.firebaseSave(`records/${selectedZone}`, allRecords);
         }
         
@@ -1572,8 +1431,7 @@
           localStorage.setItem(`customCoords_${selectedZone}`, JSON.stringify(customCoords));
           
           // Sync to Firebase
-          const isAuth = window.firebaseAuth && window.firebaseAuth.isAuthenticated ? window.firebaseAuth.isAuthenticated() : false;
-          if (isAuth && typeof window.firebaseSave === 'function') {
+          if (typeof window.firebaseSave === 'function') {
             window.firebaseSave(`coords/${selectedZone}`, customCoords);
           }
           
@@ -1583,8 +1441,7 @@
           localStorage.setItem(`records_${selectedZone}`, JSON.stringify(allRecords));
           
           // Sync to Firebase
-          const isAuth = window.firebaseAuth && window.firebaseAuth.isAuthenticated ? window.firebaseAuth.isAuthenticated() : false;
-          if (isAuth && typeof window.firebaseSave === 'function') {
+          if (typeof window.firebaseSave === 'function') {
             window.firebaseSave(`records/${selectedZone}`, allRecords);
           }
           
@@ -2069,8 +1926,7 @@
       localStorage.setItem(`customCoords_${selectedZone}`, JSON.stringify(customCoords));
       
       // Sync to Firebase
-      const isAuth = window.firebaseAuth && window.firebaseAuth.isAuthenticated ? window.firebaseAuth.isAuthenticated() : false;
-      if (isAuth && typeof window.firebaseSave === 'function') {
+      if (typeof window.firebaseSave === 'function') {
         window.firebaseSave(`coords/${selectedZone}`, customCoords);
       }
       
@@ -2087,8 +1943,7 @@
       localStorage.setItem(`records_${selectedZone}`, JSON.stringify(allRecords));
       
       // Sync to Firebase
-      const isAuth = window.firebaseAuth && window.firebaseAuth.isAuthenticated ? window.firebaseAuth.isAuthenticated() : false;
-      if (isAuth && typeof window.firebaseSave === 'function') {
+      if (typeof window.firebaseSave === 'function') {
         window.firebaseSave(`records/${selectedZone}`, allRecords);
       }
       
@@ -2102,8 +1957,7 @@
       localStorage.setItem(`records_${selectedZone}`, JSON.stringify(allRecords));
       
       // Sync to Firebase
-      const isAuth = window.firebaseAuth && window.firebaseAuth.isAuthenticated ? window.firebaseAuth.isAuthenticated() : false;
-      if (isAuth && typeof window.firebaseSave === 'function') {
+      if (typeof window.firebaseSave === 'function') {
         window.firebaseSave(`records/${selectedZone}`, allRecords);
       }
       
@@ -2163,8 +2017,7 @@
         localStorage.setItem(`records_${selectedZone}`, JSON.stringify(allRecords));
         
         // Sync to Firebase
-        const isAuth = window.firebaseAuth && window.firebaseAuth.isAuthenticated ? window.firebaseAuth.isAuthenticated() : false;
-        if (isAuth && typeof window.firebaseSave === 'function') {
+        if (typeof window.firebaseSave === 'function') {
           window.firebaseSave(`records/${selectedZone}`, allRecords);
         }
         
@@ -2191,8 +2044,7 @@
         localStorage.setItem('techImages', JSON.stringify(techImages));
         
         // Sync to Firebase
-        const isAuth = window.firebaseAuth && window.firebaseAuth.isAuthenticated ? window.firebaseAuth.isAuthenticated() : false;
-        if (isAuth && typeof window.firebaseSave === 'function') {
+        if (typeof window.firebaseSave === 'function') {
           window.firebaseSave('techImages', techImages);
         }
         
@@ -2264,8 +2116,7 @@
             localStorage.setItem(`customCoords_${selectedZone}`, JSON.stringify(customCoords));
             
             // Sync to Firebase
-            const isAuth = window.firebaseAuth && window.firebaseAuth.isAuthenticated ? window.firebaseAuth.isAuthenticated() : false;
-            if (isAuth && typeof window.firebaseSave === 'function') {
+            if (typeof window.firebaseSave === 'function') {
               window.firebaseSave(`coords/${selectedZone}`, customCoords);
             }
             
@@ -2312,8 +2163,7 @@
         localStorage.setItem(`customCoords_${selectedZone}`, JSON.stringify(customCoords));
         
         // Sync to Firebase
-        const isAuth = window.firebaseAuth && window.firebaseAuth.isAuthenticated ? window.firebaseAuth.isAuthenticated() : false;
-        if (isAuth && typeof window.firebaseSave === 'function') {
+        if (typeof window.firebaseSave === 'function') {
           window.firebaseSave(`coords/${selectedZone}`, customCoords);
         }
         
@@ -2635,6 +2485,9 @@
                 }
               });
               localStorage.setItem(`customCoords_${selectedZone}`, JSON.stringify(customCoords));
+              if (typeof window.firebaseSave === 'function') {
+                window.firebaseSave(`coords/${selectedZone}`, customCoords);
+              }
               renderMarkers();
               alert(`Imagen aplicada a ${updatedCount} coordenadas en la categoría "${category}" - ${zone}`);
               fileInput.value = '';
@@ -2673,8 +2526,7 @@
       localStorage.setItem(`customCoords_${selectedZone}`, JSON.stringify(customCoords));
       
       // Sync to Firebase
-      const isAuth = window.firebaseAuth && window.firebaseAuth.isAuthenticated ? window.firebaseAuth.isAuthenticated() : false;
-      if (isAuth && typeof window.firebaseSave === 'function') {
+      if (typeof window.firebaseSave === 'function') {
         window.firebaseSave(`coords/${selectedZone}`, customCoords);
       }
       
@@ -2695,8 +2547,7 @@
           localStorage.setItem(`customCoords_${selectedZone}`, JSON.stringify(customCoords));
           
           // Sync to Firebase
-          const isAuth = window.firebaseAuth && window.firebaseAuth.isAuthenticated ? window.firebaseAuth.isAuthenticated() : false;
-          if (isAuth && typeof window.firebaseSave === 'function') {
+          if (typeof window.firebaseSave === 'function') {
             window.firebaseSave(`coords/${selectedZone}`, customCoords);
           }
           
@@ -2720,8 +2571,7 @@
         localStorage.setItem(`customCoords_${selectedZone}`, JSON.stringify(customCoords));
         
         // Sync to Firebase
-        const isAuth = window.firebaseAuth && window.firebaseAuth.isAuthenticated ? window.firebaseAuth.isAuthenticated() : false;
-        if (isAuth && typeof window.firebaseSave === 'function') {
+        if (typeof window.firebaseSave === 'function') {
           window.firebaseSave(`deletedRecords/${selectedZone}`, deletedRecords);
           window.firebaseSave(`coords/${selectedZone}`, customCoords);
         }
@@ -2747,8 +2597,7 @@
       localStorage.setItem(`customCoords_${selectedZone}`, JSON.stringify(customCoords));
       
       // Sync to Firebase
-      const isAuth = window.firebaseAuth && window.firebaseAuth.isAuthenticated ? window.firebaseAuth.isAuthenticated() : false;
-      if (isAuth && typeof window.firebaseSave === 'function') {
+      if (typeof window.firebaseSave === 'function') {
         window.firebaseSave(`deletedRecords/${selectedZone}`, deletedRecords);
         window.firebaseSave(`coords/${selectedZone}`, customCoords);
       }
@@ -2853,6 +2702,9 @@
             }
             technicianList = technicianList.filter(tech => tech !== currentTech);
             localStorage.setItem('technicianList', JSON.stringify(technicianList));
+          if (typeof window.firebaseSave === 'function') {
+            window.firebaseSave('technicianList', technicianList);
+          }
             updateRecordTechnician(record.id, '');
             showContextMenu(x, y, record);
             return;
@@ -2874,6 +2726,9 @@
             // Sort the list after adding a new technician
             technicianList.sort((a, b) => a.localeCompare(b));
             localStorage.setItem('technicianList', JSON.stringify(technicianList));
+          if (typeof window.firebaseSave === 'function') {
+            window.firebaseSave('technicianList', technicianList);
+          }
           }
           updateRecordTechnician(record.id, newTech);
           showRecordDetails(record);
@@ -2890,6 +2745,9 @@
               // Sort the list after adding a new technician
               technicianList.sort((a, b) => a.localeCompare(b));
               localStorage.setItem('technicianList', JSON.stringify(technicianList));
+          if (typeof window.firebaseSave === 'function') {
+            window.firebaseSave('technicianList', technicianList);
+          }
             }
             updateRecordTechnician(record.id, newTech);
             showRecordDetails(record);
@@ -2910,4 +2768,7 @@
 </body>
 
 </html>
+
+
+
 
