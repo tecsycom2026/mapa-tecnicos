@@ -280,7 +280,7 @@ function subscribeToZone(zone) {
   if (_realtimeChannel) { sb.removeChannel(_realtimeChannel); _realtimeChannel = null; }
 
   _realtimeChannel = sb.channel(`zone_${zone}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'records',  filter: `id=eq.${zone}` }, payload => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'records', filter: `id=eq.${zone}` }, payload => {
       const incoming = payload.new?.data;
       if (!incoming) return;
       allRecords = Array.isArray(incoming) ? incoming : Object.values(incoming);
@@ -303,6 +303,13 @@ function subscribeToZone(zone) {
       localStorage.setItem('techImages', JSON.stringify(techImages));
       renderMarkers();
       flashRealtimeIndicator('Imágenes actualizadas');
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'technician_list', filter: `id=eq.global` }, payload => {
+      const incoming = payload.new?.data;
+      if (!incoming) return;
+      technicianList = Array.isArray(incoming) ? incoming : Object.values(incoming);
+      localStorage.setItem('technicianList', JSON.stringify(technicianList));
+      flashRealtimeIndicator('Lista de técnicos actualizada');
     })
     .subscribe();
 }
