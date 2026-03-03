@@ -392,7 +392,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fbTL = await sbLoadGlobal('technician_list');
   if (Array.isArray(fbTL) && fbTL.length > 0) {
     technicianList = fbTL;
-    localStorage.setItem('technicianList', JSON.stringify(technicianList)); // ← actualiza local con lo de Supabase
+    technicianList.sort((a,b) => a.localeCompare(b)); // ← ordenar al cargar
+    localStorage.setItem('technicianList', JSON.stringify(technicianList));
   } else {
     // Solo la primera vez que no hay nada en Supabase
     technicianList = [
