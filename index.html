@@ -388,9 +388,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fbTL = await sbLoadGlobal('technician_list');
   if (Array.isArray(fbTL) && fbTL.length > 0) {
     technicianList = fbTL;
+    localStorage.setItem('technicianList', JSON.stringify(technicianList)); // ← actualiza local con lo de Supabase
   } else {
-    const local = localStorage.getItem('technicianList');
-    technicianList = local ? JSON.parse(local) : [
+    // Solo la primera vez que no hay nada en Supabase
+    technicianList = [
       "JOSEP FABIAN","DANIEL COLMENAREZ","YENSIS GONZALEZ","JOSE TRAVEZAÑO",
       "ANDERSON LANDAETA","KEVIN RUIZ","EDUARDO CHAFLOQUE","CARLOS ALBAN",
       "JORGE CHAFLOQUE","EFRAIN TITO","JUAN MORENO","OMAR PALOMINO",
@@ -401,7 +402,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       "DONATO PEREZ","JHONATHAN CAMACHO"
     ];
     localStorage.setItem('technicianList', JSON.stringify(technicianList));
-    sbSaveGlobal('technician_list', technicianList);
+    await sbSaveGlobal('technician_list', technicianList); // ← sube a Supabase
   }
 
   document.addEventListener('click', e => {
