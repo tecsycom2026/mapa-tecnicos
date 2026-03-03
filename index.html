@@ -385,6 +385,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fbTI = await sbLoadGlobal('tech_images');
   if (fbTI) { techImages = fbTI; localStorage.setItem('techImages', JSON.stringify(techImages)); }
 
+  // Limpiar localStorage para forzar datos frescos de Supabase
+  localStorage.removeItem('technicianList');
+  
   const fbTL = await sbLoadGlobal('technician_list');
   if (Array.isArray(fbTL) && fbTL.length > 0) {
     technicianList = fbTL;
