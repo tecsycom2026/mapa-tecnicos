@@ -308,6 +308,7 @@ function subscribeToZone(zone) {
       const incoming = payload.new?.data;
       if (!incoming) return;
       technicianList = Array.isArray(incoming) ? incoming : Object.values(incoming);
+      technicianList.sort((a,b) => a.localeCompare(b)); // ← ordenar al recibir
       localStorage.setItem('technicianList', JSON.stringify(technicianList));
       flashRealtimeIndicator('Lista de técnicos actualizada');
     })
