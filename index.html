@@ -665,7 +665,7 @@ function handleExcelUpload(e){
       const lat=parseFloat(row.latitud_Y),lng=parseFloat(row.longitud_X);
       if(isNaN(lat)||isNaN(lng))return;
       const key=`${lat},${lng}`; if(coordMap.has(key))return; coordMap.set(key,true);
-      newRecords.push({id:row.id||row.ID||row.Codigo||Date.now()+Math.random(),Codigo:row.Codigo,Cliente:row.Cliente,Direccion:row.Direccion,longitud_X:lng,latitud_Y:lat,Ubicacion:row.Ubicacion,Location:row.Location||'',Distrito:row.Distrito,Tecnico:row.Tecnico,Estado:row.Estado,Observaciones:row.Observaciones,Estado2:row.Estado2,Tramo:row.Tramo,Negocio:row.Negocio});
+      newRecords.push({id:row.id||row.ID||row.Codigo||Date.now()+Math.random(),Codigo:row.Codigo,Cliente:row.Cliente,Direccion:row.Direccion,longitud_X:lng,latitud_Y:lat,Ubicacion:row.Ubicacion,Location:row.Location||row.location||row.LOCATION||row.Ubicacion||'',Distrito:row.Distrito,Tecnico:row.Tecnico,Estado:row.Estado,Observaciones:row.Observaciones,Estado2:row.Estado2,Tramo:row.Tramo,Negocio:row.Negocio});
     });
     allRecords=newRecords;
     localStorage.setItem(`records_${selectedZone}`,JSON.stringify(allRecords));
