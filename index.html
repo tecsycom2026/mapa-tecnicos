@@ -1005,10 +1005,11 @@ function onCountdownEnd(record,marker){
   if(Notification.permission==='granted')new Notification('Tiempo agotado',{body:`Registro ${record.Codigo} expirado`});
 }
 function shouldApplyFormatting(estado){
-  if(!estado)return false;const hour=new Date().getHours();
-  if(/Pendiente\s*-\s*8\/12/.test(estado))return localStorage.getItem('format-8-12')==='true'&&hour>=8&&hour<12;
-  if(/Pendiente\s*-\s*12\/16/.test(estado))return localStorage.getItem('format-12-16')==='true'&&hour>=12&&hour<16;
-  if(/Pendiente\s*-\s*16\/20/.test(estado))return localStorage.getItem('format-16-20')==='true'&&hour>=16&&hour<20;
+  if(!estado) return false;
+  // Lee directamente de localStorage en cada llamada, independiente de cualquier otra acción
+  if(/Pendiente\s*-\s*8\/12/.test(estado))  return localStorage.getItem('format-8-12')  === 'true';
+  if(/Pendiente\s*-\s*12\/16/.test(estado)) return localStorage.getItem('format-12-16') === 'true';
+  if(/Pendiente\s*-\s*16\/20/.test(estado)) return localStorage.getItem('format-16-20') === 'true';
   return false;
 }
 function updateFormatToggleLabel(toggle){const lbl=document.querySelector(`label[for="${toggle.id}"]`);if(lbl)lbl.classList.toggle('bg-yellow',toggle.checked);}
