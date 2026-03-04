@@ -894,6 +894,7 @@ function showRecordDetails(record){
     <div class="mb-3 p-3 bg-light rounded"><h6>${record.Cliente}</h6></div>
     <div class="row g-3">
     <div class="col-12"><strong>Dirección:</strong> ${record.Direccion}</div>
+    <div class="col-12"><strong>Location:</strong> ${record.Location ? `<a href="${record.Location}" target="_blank" class="text-break">${record.Location}</a>` : '<em class="text-muted">No disponible</em>'}</div>
     <div class="col-12"><strong>Distrito:</strong> ${record.Distrito}</div>
     <div class="col-12"><strong>Técnico:</strong><select id="assign-tech-dropdown" class="form-select form-select-sm mt-1">${techOpts}</select></div>
     ${suggHtml}
