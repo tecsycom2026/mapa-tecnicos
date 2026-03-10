@@ -966,8 +966,22 @@ function searchByCodigo(){
 }
 
 // ─── Downloads ────────────────────────────────────────────────────────────────
-function downloadRecordsAsExcel(){const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(allRecords),'Registros');XLSX.writeFile(wb,'registros_asignados.xlsx');}
-function downloadRecordsAsCSV(){const csv=XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(allRecords));const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='registros_asignados.csv';a.click();}
+function downloadRecordsAsExcel(){
+  const cols=['id','Codigo','Cliente','Direccion','longitud_X','latitud_Y','Ubicacion','Location','Distrito','Tecnico','Estado','Observaciones','Estado2','Tramo','Negocio'];
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.json_to_sheet(allRecords, {header: cols});
+  XLSX.utils.book_append_sheet(wb,ws,'Registros');
+  XLSX.writeFile(wb,'registros_asignados.xlsx');
+}
+function downloadRecordsAsCSV(){
+  const cols=['id','Codigo','Cliente','Direccion','longitud_X','latitud_Y','Ubicacion','Location','Distrito','Tecnico','Estado','Observaciones','Estado2','Tramo','Negocio'];
+  const ws=XLSX.utils.json_to_sheet(allRecords, {header: cols});
+  const csv=XLSX.utils.sheet_to_csv(ws);
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download='registros_asignados.csv';
+  a.click();
+}
 
 // ─── Suggestions ─────────────────────────────────────────────────────────────
 function getTechnicianSuggestions(record){
