@@ -23,7 +23,6 @@
     #detail-panel.open { right:0; }
     .close-panel { position:absolute; top:10px; right:10px; cursor:pointer; }
     .accordion-button:not(.collapsed) { background-color:#e7f1ff; color:#0c63e4; }
-    .district-stat,.tech-stat { margin-bottom:5px; padding:8px; border-radius:4px; background-color:#f8f9fa; font-size:.8rem; }
     .loading-overlay { position:absolute; top:0; left:0; width:100%; height:100%; background-color:rgba(255,255,255,.8); display:flex; justify-content:center; align-items:center; z-index:2000; }
     .custom-pin { width:30px; height:30px; border-radius:50%; background:var(--color,#4285F4); color:#fff; display:flex; align-items:center; justify-content:center; font-size:1.5em; box-shadow:0 2px 8px rgba(0,0,0,.15); }
     .filter-section { padding:10px; margin-bottom:10px; border-bottom:1px solid #dee2e6; }
@@ -67,7 +66,6 @@
 </head>
 <body>
 <div id="app-container">
-  <!-- Sidebar -->
   <div id="sidebar">
     <div class="p-3">
       <h4 class="mb-3"><i class="fas fa-map"></i> Michell Sulca.V</h4>
@@ -84,7 +82,6 @@
       </div>
 
       <div class="accordion" id="accordionSidebar">
-        <!-- Filtros -->
         <div class="accordion-item">
           <h2 class="accordion-header">
             <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne">Filtros</button>
@@ -182,7 +179,6 @@
           </div>
         </div>
 
-        <!-- Estadísticas -->
         <div class="accordion-item">
           <h2 class="accordion-header">
             <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo">Estadísticas</button>
@@ -194,7 +190,6 @@
           </div>
         </div>
 
-        <!-- Imágenes técnico -->
         <div class="accordion-item">
           <h2 class="accordion-header">
             <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree">Asignar Imagen a Técnico</button>
@@ -209,7 +204,6 @@
           </div>
         </div>
 
-        <!-- Resumen técnicos -->
         <div id="tech-summary-panel" class="mb-4 p-3 border rounded bg-light mt-3">
           <h6>Resumen por Técnico</h6>
           <div id="tech-summary-content" class="small"><div class="text-center text-muted">Cargando...</div></div>
@@ -245,30 +239,26 @@
 
 <script>
 // ─── Supabase config ──────────────────────────────────────────────────────────
-const SUPABASE_URL  = 'https://jxpeztieqwotfgswhzhx.supabase.co';
-const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4cGV6dGllcXdvdGZnc3doemh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4MzQ4MDQsImV4cCI6MjA4NjQxMDgwNH0.Hf-lbGlP2OmH7Uh2LNKqwHkwHDp7yQV6O73aXw5NCZk';
+const SUPABASE_URL = 'https://jxpeztieqwotfgswhzhx.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4cGV6dGllcXdvdGZnc3doemh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4MzQ4MDQsImV4cCI6MjA4NjQxMDgwNH0.Hf-lbGlP2OmH7Uh2LNKqwHkwHDp7yQV6O73aXw5NCZk';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ─── Supabase helpers ─────────────────────────────────────────────────────────
 async function sbSave(table, zone, data) {
-  // upsert a single row identified by id = zone
   const { error } = await sb.from(table).upsert({ id: zone, zone, data, updated_at: new Date().toISOString() });
   if (error) console.error(`sbSave ${table}:`, error);
 }
-
 async function sbLoad(table, zone) {
   const { data, error } = await sb.from(table).select('data').eq('id', zone).single();
   if (error) return null;
   return data?.data ?? null;
 }
-
-// Single-row tables (tech_images, technician_list)
 async function sbSaveGlobal(table, data) {
   const { error } = await sb.from(table).upsert({ id: 'global', data, updated_at: new Date().toISOString() });
   if (error) console.error(`sbSaveGlobal ${table}:`, error);
 }
 async function sbLoadGlobal(table) {
-  const { data, error } = await sb.from(table).select('data').eq('id','global').single();
+  const { data, error } = await sb.from(table).select('data').eq('id', 'global').single();
   if (error) return null;
   return data?.data ?? null;
 }
@@ -307,10 +297,18 @@ function subscribeToZone(zone) {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'technician_list', filter: `id=eq.global` }, payload => {
       const incoming = payload.new?.data;
       if (!incoming) return;
+      // ── Siempre actualiza desde Supabase, nunca desde localStorage ──
       technicianList = Array.isArray(incoming) ? incoming : Object.values(incoming);
-      technicianList.sort((a,b) => a.localeCompare(b)); // ← ordenar al recibir
       localStorage.setItem('technicianList', JSON.stringify(technicianList));
       flashRealtimeIndicator('Lista de técnicos actualizada');
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'category_images', filter: `id=eq.global` }, payload => {
+      const incoming = payload.new?.data;
+      if (!incoming) return;
+      categoryImages = incoming;
+      localStorage.setItem('categoryImages', JSON.stringify(categoryImages));
+      renderMarkers();
+      flashRealtimeIndicator('Imágenes de categorías actualizadas');
     })
     .subscribe();
 }
@@ -325,7 +323,7 @@ function flashRealtimeIndicator(msg) {
   el.innerHTML = `<i class="fas fa-sync-alt fa-spin me-1"></i> ${msg}`;
   _fadeTimer = setTimeout(() => {
     el.classList.add('fade-out');
-    setTimeout(() => el.classList.remove('show','fade-out'), 600);
+    setTimeout(() => el.classList.remove('show', 'fade-out'), 600);
   }, 3000);
 }
 
@@ -341,6 +339,9 @@ const savedTI = localStorage.getItem('techImages');
 if (savedTI) techImages = JSON.parse(savedTI);
 const savedCC = localStorage.getItem(`customCoords_${selectedZone}`);
 if (savedCC) customCoords = JSON.parse(savedCC);
+let categoryImages = {}; // { "Zona sin Cobertura-LIMA": "base64...", ... }
+const savedCI = localStorage.getItem('categoryImages');
+if (savedCI) categoryImages = JSON.parse(savedCI);
 
 function normalizeString(s) { return s ? s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase() : ''; }
 function showLoading(v) { document.getElementById('loading-overlay').style.display = v ? 'flex' : 'none'; }
@@ -382,20 +383,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!localStorage.getItem('deletedRecordsByCategory'))
     localStorage.setItem('deletedRecordsByCategory', JSON.stringify({}));
 
-  // Load global data
+  // ── Cargar imágenes técnicos ──────────────────────────────────────────────
   const fbTI = await sbLoadGlobal('tech_images');
   if (fbTI) { techImages = fbTI; localStorage.setItem('techImages', JSON.stringify(techImages)); }
 
-  // Limpiar localStorage para forzar datos frescos de Supabase
-  localStorage.removeItem('technicianList');
-  
+  // ── Cargar imágenes por categoría ─────────────────────────────────────────
+  const fbCI = await sbLoadGlobal('tech_images');
+  const fbCatImg = await sbLoadGlobal('category_images');
+  if (fbCatImg) { categoryImages = fbCatImg; localStorage.setItem('categoryImages', JSON.stringify(categoryImages)); }
+
+  // ── Cargar lista de técnicos SIEMPRE desde Supabase (nunca localStorage) ──
+  localStorage.removeItem('technicianList'); // limpiar cache local siempre
   const fbTL = await sbLoadGlobal('technician_list');
   if (Array.isArray(fbTL) && fbTL.length > 0) {
+    // Supabase tiene datos → usarlos y actualizar localStorage
     technicianList = fbTL;
-    technicianList.sort((a,b) => a.localeCompare(b)); // ← ordenar al cargar
     localStorage.setItem('technicianList', JSON.stringify(technicianList));
   } else {
-    // Solo la primera vez que no hay nada en Supabase
+    // Primera vez que no hay nada en Supabase → subir lista base
     technicianList = [
       "JOSEP FABIAN","DANIEL COLMENAREZ","YENSIS GONZALEZ","JOSE TRAVEZAÑO",
       "ANDERSON LANDAETA","KEVIN RUIZ","EDUARDO CHAFLOQUE","CARLOS ALBAN",
@@ -407,7 +412,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       "DONATO PEREZ","JHONATHAN CAMACHO"
     ];
     localStorage.setItem('technicianList', JSON.stringify(technicianList));
-    await sbSaveGlobal('technician_list', technicianList); // ← sube a Supabase
+    await sbSaveGlobal('technician_list', technicianList);
   }
 
   document.addEventListener('click', e => {
@@ -419,31 +424,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadZoneData(selectedZone);
 });
 
-// ─── Load zone data from Supabase + subscribe realtime ────────────────────────
+// ─── Load zone data ───────────────────────────────────────────────────────────
 async function loadZoneData(zone) {
   try {
     const [recData, coordData] = await Promise.all([
       sbLoad('records', zone),
       sbLoad('coords',  zone)
     ]);
-
     allRecords   = Array.isArray(recData)   ? recData   : (recData   ? Object.values(recData)   : []);
     customCoords = Array.isArray(coordData) ? coordData : (coordData ? Object.values(coordData) : []);
-
-    localStorage.setItem(`records_${zone}`,     JSON.stringify(allRecords));
+    localStorage.setItem(`records_${zone}`,      JSON.stringify(allRecords));
     localStorage.setItem(`customCoords_${zone}`, JSON.stringify(customCoords));
-
-    if (allRecords.length === 0) {
-      // Try localStorage fallback
-      const local = localStorage.getItem(`records_${zone}`);
-      if (local) allRecords = JSON.parse(local);
-    }
-
     populateFilters(); renderMarkers(); updateStatistics();
     renderCustomCoordsList(); updateCategoryCheckboxes();
     showLoading(false);
-
-    // Start realtime subscription
     subscribeToZone(zone);
   } catch(e) {
     console.error('loadZoneData error:', e);
@@ -458,6 +452,10 @@ function initMap() {
   const to = document.createElement('div');
   to.id = 'global-timer-overlay'; to.style.display = 'none';
   document.getElementById('map-container').appendChild(to);
+  // Detectar cuando el usuario hace zoom/pan manualmente
+  map.on('zoomend moveend', function(e){
+    if(e.type==='zoomend') window._userHasZoomed = true;
+  });
   startCountdownTimer();
 }
 
@@ -489,32 +487,25 @@ function setupEventListeners() {
 function populateFilters() {
   ['tramo-filter','estado-filter','tecnico-filter','negocio-filter','distrito-filter'].forEach(id => {
     const el = document.getElementById(id); if (!el) return;
-    const first = el.options[0].outerHTML;
-    el.innerHTML = first;
+    el.innerHTML = el.options[0].outerHTML;
   });
-
   const tramos   = [...new Set(allRecords.map(r=>r.Tramo).filter(Boolean))].sort();
   const estados  = [...new Set(allRecords.map(r=>r.Estado2).filter(Boolean))].sort();
   const tecnicos = [...new Set(allRecords.map(r=>r.Tecnico).filter(Boolean))].sort();
   const negocios = [...new Set(allRecords.map(r=>r.Negocio).filter(Boolean))].sort();
   const distMap  = new Map();
-  allRecords.forEach(r => { if(r.Distrito){const n=normalizeString(r.Distrito); if(!distMap.has(n)) distMap.set(n,r.Distrito);}});
+  allRecords.forEach(r => { if(r.Distrito){const n=normalizeString(r.Distrito);if(!distMap.has(n))distMap.set(n,r.Distrito);}});
   const distritos = Array.from(distMap.values()).sort();
-
-  const tf=document.getElementById('tramo-filter'),
-        ef=document.getElementById('estado-filter'),
-        tecf=document.getElementById('tecnico-filter'),
-        nf=document.getElementById('negocio-filter'),
+  const tf=document.getElementById('tramo-filter'), ef=document.getElementById('estado-filter'),
+        tecf=document.getElementById('tecnico-filter'), nf=document.getElementById('negocio-filter'),
         df=document.getElementById('distrito-filter');
-
-  tramos.forEach(t   => tf.insertAdjacentHTML('beforeend',  `<option value="${t}">${t}</option>`));
-  distritos.forEach(d=> df.insertAdjacentHTML('beforeend',  `<option value="${d}">${d}</option>`));
+  tramos.forEach(t    => tf.insertAdjacentHTML('beforeend',   `<option value="${t}">${t}</option>`));
+  distritos.forEach(d => df.insertAdjacentHTML('beforeend',   `<option value="${d}">${d}</option>`));
   ef.insertAdjacentHTML('beforeend','<option value="pendiente_combinado">PENDIENTE</option>');
-  estados.forEach(e  => ef.insertAdjacentHTML('beforeend',  `<option value="${e}">${e}</option>`));
-  tecnicos.forEach(t => tecf.insertAdjacentHTML('beforeend',`<option value="${t}">${t}</option>`));
+  estados.forEach(e   => ef.insertAdjacentHTML('beforeend',   `<option value="${e}">${e}</option>`));
+  tecnicos.forEach(t  => tecf.insertAdjacentHTML('beforeend', `<option value="${t}">${t}</option>`));
   tecf.insertAdjacentHTML('beforeend','<option value="sin_tecnico">Sin técnico</option>');
-  negocios.forEach(n => nf.insertAdjacentHTML('beforeend', `<option value="${n}">${n}</option>`));
-
+  negocios.forEach(n  => nf.insertAdjacentHTML('beforeend',   `<option value="${n}">${n}</option>`));
   const imgSel = document.getElementById('image-tecnico-select');
   if (imgSel) {
     imgSel.innerHTML = '<option value="">Selecciona técnico</option><option value="sin_tecnico">Sin técnico</option>';
@@ -524,55 +515,78 @@ function populateFilters() {
 }
 
 function applyFilters() {
-  const t=document.getElementById('tramo-filter')?.value,
-        e=document.getElementById('estado-filter')?.value,
-        tech=document.getElementById('tecnico-filter')?.value,
-        neg=document.getElementById('negocio-filter')?.value,
+  const t=document.getElementById('tramo-filter')?.value, e=document.getElementById('estado-filter')?.value,
+        tech=document.getElementById('tecnico-filter')?.value, neg=document.getElementById('negocio-filter')?.value,
         dist=document.getElementById('distrito-filter')?.value;
   clearMarkers();
   let f=allRecords;
-  if(t)    f=f.filter(r=>r.Tramo===t);
-  if(e){
-    if(e==='pendiente_combinado') f=f.filter(r=>['PROGRAMADO','EN CAMINO','COORDINADO'].includes(r.Estado2));
-    else f=f.filter(r=>r.Estado2===e);
-  }
+  if(t) f=f.filter(r=>r.Tramo===t);
+  if(e){ if(e==='pendiente_combinado') f=f.filter(r=>['PROGRAMADO','EN CAMINO','COORDINADO'].includes(r.Estado2)); else f=f.filter(r=>r.Estado2===e); }
   if(tech) f=f.filter(r=>tech==='sin_tecnico'?!r.Tecnico:r.Tecnico===tech);
   if(neg)  f=f.filter(r=>r.Negocio===neg);
-  if(dist){const nd=normalizeString(dist); f=f.filter(r=>normalizeString(r.Distrito)===nd);}
+  if(dist){const nd=normalizeString(dist);f=f.filter(r=>normalizeString(r.Distrito)===nd);}
   renderMarkersFromRecords(f);
-  if(markers.length>0) map.fitBounds(new L.featureGroup(markers).getBounds(),{padding:[50,50]});
+  // Solo hacer fitBounds si hay filtros activos, sino preservar zoom
+  if(markers.length>0 && (t||e||tech||neg||dist)){
+    window._userHasZoomed = false;
+    map.fitBounds(new L.featureGroup(markers).getBounds(),{padding:[50,50]});
+  }
 }
 
 function renderMarkers() {
+  const currentZoom = map.getZoom();
+  const currentCenter = map.getCenter();
   clearMarkers();
   renderMarkersFromRecords(allRecords);
-  if(markers.length>0) map.fitBounds(new L.featureGroup(markers).getBounds(),{padding:[50,50]});
+  // Solo hacer fitBounds si no hay zoom previo del usuario
+  if(!window._userHasZoomed){
+    if(markers.length>0) map.fitBounds(new L.featureGroup(markers).getBounds(),{padding:[50,50]});
+  } else {
+    map.setView(currentCenter, currentZoom, {animate:false});
+  }
 }
 
 function renderMarkersFromRecords(records) {
   clearMarkers();
   const colors=['#4285F4','#EA4335','#FBBC05','#34A853','#8E24AA'];
-  [...new Set(records.map(r=>r.Tecnico).filter(Boolean))].forEach((t,i)=>{ if(!techColors[t]) techColors[t]=colors[i%colors.length]; });
+  [...new Set(records.map(r=>r.Tecnico).filter(Boolean))].forEach((t,i)=>{if(!techColors[t])techColors[t]=colors[i%colors.length];});
   techColors['sin_tecnico']='#9E9E9E';
-  const showTips = localStorage.getItem('showTooltips') !== 'false';
-  const visCat = {};
+  const showTips=localStorage.getItem('showTooltips')!=='false';
+  const visCat={};
   document.querySelectorAll('#category-checkboxes input[type="checkbox"]:checked').forEach(cb=>{
-    const z=cb.dataset.zone; if(!visCat[z])visCat[z]=[]; visCat[z].push(cb.dataset.category);
+    const z=cb.dataset.zone;if(!visCat[z])visCat[z]=[];visCat[z].push(cb.dataset.category);
   });
-
-  records.forEach(record => {
-    const lat=record.latitud_Y, lng=record.longitud_X;
-    if(!lat||!lng) return;
+  records.forEach(record=>{
+    const lat=record.latitud_Y,lng=record.longitud_X;if(!lat||!lng)return;
     const estado=record.Estado||'N/A';
     const color=record.Tecnico&&techColors[record.Tecnico]?techColors[record.Tecnico]:techColors['sin_tecnico'];
     const imgSrc=record.Tecnico?techImages[record.Tecnico]:techImages['sin_tecnico'];
+
+    // Detectar si tiene pendiente con tramo
+    const matchTramo=estado.match(/(8\/12|12\/16|16\/20)/);
+    const esPendiente=matchTramo&&/pendiente/i.test(estado);
+    const iv=esPendiente?getIntervalFromRange(matchTramo[1]):null;
+    const now=new Date();
+    const nowSegs=now.getHours()*3600+now.getMinutes()*60+now.getSeconds();
+    const venceSegs=iv?iv.end*3600:null;
+    const alertaSegs=venceSegs?venceSegs-3600:null;
+    const yaVencio=venceSegs&&nowSegs>=venceSegs;
+    const enAlerta=alertaSegs&&nowSegs>=alertaSegs&&nowSegs<venceSegs;
+
     let marker;
     if(imgSrc){
-      marker=L.marker([lat,lng],{icon:L.icon({iconUrl:imgSrc,iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
-      if(showTips) marker.bindTooltip(estado,{permanent:true,direction:'right',className:shouldApplyFormatting(estado)?'estado-label estado-pendiente':'estado-label',offset:[5,0]});
+      // Con imagen: envolver en div para poder agregar overlay
+      const wrapId=`mw-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      let overlayHtml='';
+      if(yaVencio) overlayHtml=`<div class="countdown-overlay" style="display:block;background:rgba(200,0,0,0.90);color:white;font-weight:bold;position:absolute;top:-14px;left:0;width:100%;text-align:center;font-size:10px;padding:1px;z-index:10;pointer-events:none;white-space:nowrap;">ORDEN VENCIDA</div>`;
+      const iconHtml=`<div id="${wrapId}" style="position:relative;width:30px;height:30px;overflow:visible;">${overlayHtml}<img src="${imgSrc}" style="width:30px;height:30px;border-radius:50%;"/></div>`;
+      marker=L.marker([lat,lng],{icon:L.divIcon({className:'',html:iconHtml,iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
+      if(showTips)marker.bindTooltip(estado,{permanent:true,direction:'right',className:shouldApplyFormatting(estado)?'estado-label estado-pendiente':'estado-label',offset:[5,0]});
     } else {
-      let html=`<div class="custom-pin" style="--color:${color}">${estado.charAt(0)}</div>`;
-      if(showTips) html+=`<div class="${shouldApplyFormatting(estado)?'estado-label estado-pendiente':'estado-label'}">${estado}</div>`;
+      let overlayHtml='';
+      if(yaVencio) overlayHtml=`<div class="countdown-overlay" style="display:block;background:rgba(200,0,0,0.90);color:white;font-weight:bold;position:absolute;top:-14px;left:0;width:30px;text-align:center;font-size:10px;padding:1px;z-index:10;pointer-events:none;white-space:nowrap;">ORDEN VENCIDA</div>`;
+      let html=`<div style="position:relative;overflow:visible;">${overlayHtml}<div class="custom-pin" style="--color:${color}">${estado.charAt(0)}</div></div>`;
+      if(showTips)html+=`<div class="${shouldApplyFormatting(estado)?'estado-label estado-pendiente':'estado-label'}">${estado}</div>`;
       marker=L.marker([lat,lng],{icon:L.divIcon({className:'custom-marker-container',html,iconSize:[100,30],iconAnchor:[15,15]})}).addTo(map);
     }
     marker.on('contextmenu',e=>{e.originalEvent.preventDefault();showContextMenu(e.originalEvent.clientX,e.originalEvent.clientY,marker.record);});
@@ -580,23 +594,24 @@ function renderMarkersFromRecords(records) {
     marker.on('click',()=>showRecordDetails(record));
     markers.push(marker);
   });
-
   const showKml=localStorage.getItem('showKmlPoints')==='true';
   customCoords.forEach(c=>{
-    if(c.kml&&!showKml) return;
-    if(c.zone!==selectedZone) return;
-    const cz=c.zone||selectedZone;
-    if(!visCat[cz]||!visCat[cz].includes(c.category)) return;
+    if(c.kml&&!showKml)return;if(c.zone!==selectedZone)return;
+    const cz=c.zone||selectedZone;if(!visCat[cz]||!visCat[cz].includes(c.category))return;
     const catColors={'Zona sin Cobertura':'#FF5722','Sin FFTT':'#9C27B0','Zona Peligrosa':'#F44336','Dirección de Técnicos':'#3F51B5'};
+    // Usar imagen de categoryImages por categoría-zona (independiente por categoría)
+    const imgKey=`${c.category}-${cz}`;
+    const imgSrcCoord=categoryImages[imgKey]||c.imgData||null;
     let marker;
-    if(c.imgData){
-      marker=L.marker([c.lat,c.lng],{icon:L.icon({iconUrl:c.imgData,iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
+    if(imgSrcCoord){
+      const wrapId=`cw-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const iconHtml=`<div id="${wrapId}" style="position:relative;width:30px;height:30px;overflow:visible;"><img src="${imgSrcCoord}" style="width:30px;height:30px;border-radius:50%;"/></div>`;
+      marker=L.marker([c.lat,c.lng],{icon:L.divIcon({className:'',html:iconHtml,iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
     } else {
       const col=catColors[c.category]||'#607D8B';
       marker=L.marker([c.lat,c.lng],{icon:L.divIcon({className:'custom-pin',html:`<div class="custom-pin" style="--color:${col}">?</div>`,iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
     }
-    if(c.category==='Dirección de Técnicos'&&c.note)
-      marker.bindTooltip(c.note,{permanent:true,direction:'right',className:'estado-label',offset:[5,0]});
+    if(c.category==='Dirección de Técnicos'&&c.note)marker.bindTooltip(c.note,{permanent:true,direction:'right',className:'estado-label',offset:[5,0]});
     else marker.bindPopup(`<strong>${c.category}</strong><br>${c.note||''}`);
     marker.on('click',()=>showRecordDetails(c));
     markers.push(marker);
@@ -613,13 +628,11 @@ function deleteRecord(recordId){
     if(isManual){
       customCoords=customCoords.filter(c=>c.id!==recordId);
       localStorage.setItem(`customCoords_${selectedZone}`,JSON.stringify(customCoords));
-      await sbSave('coords',selectedZone,customCoords);
-      renderCustomCoordsList();
+      await sbSave('coords',selectedZone,customCoords);renderCustomCoordsList();
     } else {
       allRecords=allRecords.filter(r=>r.id!==recordId);
       localStorage.setItem(`records_${selectedZone}`,JSON.stringify(allRecords));
-      await sbSave('records',selectedZone,allRecords);
-      populateFilters();
+      await sbSave('records',selectedZone,allRecords);populateFilters();
     }
     document.getElementById('detail-panel').classList.remove('open');
     renderMarkers();updateStatistics();showLoading(false);
@@ -628,7 +641,7 @@ function deleteRecord(recordId){
 }
 
 async function updateRecordTechnician(recordId,newTech){
-  const idx=allRecords.findIndex(r=>r.id===recordId); if(idx===-1)return;
+  const idx=allRecords.findIndex(r=>r.id===recordId);if(idx===-1)return;
   allRecords[idx].Tecnico=newTech;
   localStorage.setItem(`records_${selectedZone}`,JSON.stringify(allRecords));
   await sbSave('records',selectedZone,allRecords);
@@ -636,7 +649,7 @@ async function updateRecordTechnician(recordId,newTech){
 }
 
 async function updateRecordObservation(recordId,obs){
-  const idx=allRecords.findIndex(r=>r.id===recordId); if(idx===-1)return;
+  const idx=allRecords.findIndex(r=>r.id===recordId);if(idx===-1)return;
   allRecords[idx].Observaciones=obs;
   localStorage.setItem(`records_${selectedZone}`,JSON.stringify(allRecords));
   await sbSave('records',selectedZone,allRecords);
@@ -644,7 +657,7 @@ async function updateRecordObservation(recordId,obs){
 }
 
 async function updateManualCoordinate(coordId,newCat,newNote){
-  const idx=customCoords.findIndex(c=>c.id===coordId); if(idx===-1)return;
+  const idx=customCoords.findIndex(c=>c.id===coordId);if(idx===-1)return;
   customCoords[idx].category=newCat;customCoords[idx].note=newNote;
   localStorage.setItem(`customCoords_${selectedZone}`,JSON.stringify(customCoords));
   await sbSave('coords',selectedZone,customCoords);
@@ -654,7 +667,7 @@ async function updateManualCoordinate(coordId,newCat,newNote){
 
 // ─── Excel upload ─────────────────────────────────────────────────────────────
 function handleExcelUpload(e){
-  const file=e.target.files[0]; if(!file)return;
+  const file=e.target.files[0];if(!file)return;
   showLoading(true);
   const reader=new FileReader();
   reader.onload=async function(evt){
@@ -664,16 +677,15 @@ function handleExcelUpload(e){
     json.forEach(row=>{
       const lat=parseFloat(row.latitud_Y),lng=parseFloat(row.longitud_X);
       if(isNaN(lat)||isNaN(lng))return;
-      const key=`${lat},${lng}`; if(coordMap.has(key))return; coordMap.set(key,true);
-      newRecords.push({id:row.id||row.ID||row.Codigo||Date.now()+Math.random(),Codigo:row.Codigo,Cliente:row.Cliente,Direccion:row.Direccion,longitud_X:lng,latitud_Y:lat,Ubicacion:row.Ubicacion,Location:row.Location||row.location||row.LOCATION||row.Ubicacion||'',Distrito:row.Distrito,Tecnico:row.Tecnico,Estado:row.Estado,Observaciones:row.Observaciones,Estado2:row.Estado2,Tramo:row.Tramo,Negocio:row.Negocio});
+      const key=`${lat},${lng}`;if(coordMap.has(key))return;coordMap.set(key,true);
+      newRecords.push({id:row.id||row.ID||row.Codigo||Date.now()+Math.random(),Codigo:row.Codigo,Cliente:row.Cliente,Direccion:row.Direccion,longitud_X:lng,latitud_Y:lat,Ubicacion:row.Ubicacion,Location:row.Location||row.location||row.LOCATION||'',Distrito:row.Distrito,Tecnico:row.Tecnico,Estado:row.Estado,Observaciones:row.Observaciones,Estado2:row.Estado2,Tramo:row.Tramo,Negocio:row.Negocio});
     });
     allRecords=newRecords;
+    window._userHasZoomed = false; // reset para que fitBounds aplique al cargar nuevo archivo
     localStorage.setItem(`records_${selectedZone}`,JSON.stringify(allRecords));
-    // Guardar en Supabase → dispara realtime a todos los demás usuarios
     await sbSave('records',selectedZone,allRecords);
     flashRealtimeIndicator(`${newRecords.length} registros publicados en tiempo real`);
-    populateFilters();renderMarkers();updateStatistics();showLoading(false);
-    e.target.value='';
+    populateFilters();renderMarkers();updateStatistics();showLoading(false);e.target.value='';
   };
   reader.readAsArrayBuffer(file);
 }
@@ -694,7 +706,7 @@ function handleTechImageUpload(e){
 
 // ─── KML upload ───────────────────────────────────────────────────────────────
 function handleKmlUpload(e){
-  const file=e.target.files[0]; if(!file)return;
+  const file=e.target.files[0];if(!file)return;
   const msgEl=document.getElementById('kml-upload-msg');
   msgEl.textContent='Procesando KML...';msgEl.className='small mt-1 text-info';
   const html=`<div class="modal fade" id="kmlCatModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Seleccionar Categoría</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><select id="kml-category-select" class="form-select"><option value="Zona sin Cobertura">Zona sin Cobertura</option><option value="Sin FFTT">Sin FFTT</option><option value="Zona Peligrosa">Zona Peligrosa</option><option value="Dirección de Técnicos">Dirección de Técnicos</option></select></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-primary" id="kml-confirm-btn">Confirmar</button></div></div></div></div>`;
@@ -713,16 +725,15 @@ function handleKmlUpload(e){
           const pm=pms[i];
           const name=pm.querySelector('name')?.textContent||'';
           const coords=pm.getElementsByTagName('coordinates')[0]?.textContent.trim();
-          if(!coords)continue;
-          const parts=coords.split(',');if(parts.length<2)continue;
+          if(!coords)continue;const parts=coords.split(',');if(parts.length<2)continue;
           const lng=parseFloat(parts[0]),lat=parseFloat(parts[1]);
           if(isNaN(lat)||isNaN(lng))continue;
           newCoords.push({id:Date.now()+i,lat,lng,category:cat,note:name,imgData:null,zone:selectedZone,kml:true});
         }
-        const mm=new Map();
-        customCoords.forEach(c=>{if(c.kml&&c.zone===selectedZone)return;mm.set(`${c.lat},${c.lng},${c.zone}`,c);});
-        newCoords.forEach(c=>{const k=`${c.lat},${c.lng},${c.zone}`;const ex=mm.get(k);if(ex&&ex.imgData)c.imgData=ex.imgData;mm.set(k,c);});
-        customCoords=Array.from(mm.values());
+        // ── Acumular por categoría: elimina solo los KML de ESTA categoría y zona,
+        //    conserva las demás categorías intactas ──
+        const sinEstaCategoria=customCoords.filter(c=>!(c.kml&&c.zone===selectedZone&&c.category===cat));
+        customCoords=[...sinEstaCategoria,...newCoords];
         localStorage.setItem(`customCoords_${selectedZone}`,JSON.stringify(customCoords));
         await sbSave('coords',selectedZone,customCoords);
         flashRealtimeIndicator(`${newCoords.length} puntos KML publicados en tiempo real`);
@@ -767,8 +778,7 @@ async function saveAndRenderCoord(entry){
   customCoords.forEach(c=>mm.set(`${c.lat},${c.lng},${c.zone}`,c));
   const k=`${entry.lat},${entry.lng},${entry.zone}`;
   const ex=mm.get(k);if(ex&&ex.imgData&&!entry.imgData)entry.imgData=ex.imgData;
-  mm.set(k,entry);
-  customCoords=Array.from(mm.values());
+  mm.set(k,entry);customCoords=Array.from(mm.values());
   localStorage.setItem(`customCoords_${selectedZone}`,JSON.stringify(customCoords));
   await sbSave('coords',selectedZone,customCoords);
   renderCustomCoordsList();updateCategoryCheckboxes();renderMarkers();
@@ -786,25 +796,68 @@ function updateCategoryCheckboxes(){
     ['LIMA','PROVINCIA'].forEach(zone=>{
       const k=`${category}-${zone}`;if(!counts[k])return;
       const catId=`category-${category.replace(/\s+/g,'-').toLowerCase()}-${zone}`;
-      const div=document.createElement('div');div.className='form-check d-flex align-items-center';div.dataset.zone=zone;div.style.display=zone===selectedZone?'flex':'none';
+      const div=document.createElement('div');div.className='form-check d-flex align-items-center flex-wrap gap-1 mb-1';div.dataset.zone=zone;div.style.display=zone===selectedZone?'flex':'none';
       const cb=document.createElement('input');cb.className='form-check-input';cb.type='checkbox';cb.id=catId;cb.dataset.category=category;cb.dataset.zone=zone;cb.checked=localStorage.getItem(catId)!=='false';
-      const lbl=document.createElement('label');lbl.className='form-check-label me-2';lbl.htmlFor=catId;
+      const lbl=document.createElement('label');lbl.className='form-check-label me-1';lbl.htmlFor=catId;
       lbl.textContent=`${category==='Dirección de Técnicos'?'Técnicos':category} (${counts[k]}) - ${zone}`;
-      const imgBtn=document.createElement('button');imgBtn.className='btn btn-sm btn-outline-secondary assign-category-image-btn ms-2';imgBtn.innerHTML='<i class="fas fa-image"></i>';imgBtn.title='Asignar imagen';
+
+      // Botón asignar imagen por categoría-zona
+      const imgKey=`${category}-${zone}`;
+      const hasImg=!!categoryImages[imgKey];
+      const imgBtn=document.createElement('button');
+      imgBtn.className=`btn btn-sm ${hasImg?'btn-success':'btn-outline-secondary'} assign-category-image-btn`;
+      imgBtn.innerHTML=`<i class="fas fa-image"></i>${hasImg?' ✓':''}`;
+      imgBtn.title=hasImg?`Imagen asignada a "${category}" - ${zone}. Click para cambiar`:`Asignar imagen a "${category}" - ${zone}`;
+
       const fileInp=document.createElement('input');fileInp.type='file';fileInp.accept='.jpg,.jpeg,.png';fileInp.className='visually-hidden';
       imgBtn.addEventListener('click',()=>fileInp.click());
+
       fileInp.addEventListener('change',async function(ev){
         const f=ev.target.files[0];if(!f)return;
         const rdr=new FileReader();
         rdr.onload=async function(e2){
-          let n=0;
-          customCoords.forEach(c=>{if(c.category===category&&(c.zone||selectedZone)===zone){c.imgData=e2.target.result;n++;}});
-          localStorage.setItem(`customCoords_${selectedZone}`,JSON.stringify(customCoords));
-          await sbSave('coords',selectedZone,customCoords);
-          renderMarkers();alert(`Imagen aplicada a ${n} coordenadas en "${category}" - ${zone}`);fileInp.value='';
+          // Guardar imagen por clave categoría-zona (independiente)
+          categoryImages[imgKey]=e2.target.result;
+          localStorage.setItem('categoryImages',JSON.stringify(categoryImages));
+          await sbSaveGlobal('category_images',categoryImages);
+          updateCategoryCheckboxes();
+          renderMarkers();
+          alert(`Imagen asignada a "${category}" - ${zone}`);
+          fileInp.value='';
         };rdr.readAsDataURL(f);
       });
-      div.appendChild(cb);div.appendChild(lbl);div.appendChild(imgBtn);div.appendChild(fileInp);
+
+      // Botón quitar imagen
+      // Botón limpiar categoría
+      const clearBtn=document.createElement('button');
+      clearBtn.className='btn btn-sm btn-outline-danger ms-1';
+      clearBtn.innerHTML='<i class="fas fa-trash"></i>';
+      clearBtn.title=`Limpiar todos los puntos de "${category}" - ${zone}`;
+      clearBtn.addEventListener('click',async()=>{
+        if(!confirm(`¿Eliminar todos los puntos de "${category}" - ${zone}?`))return;
+        customCoords=customCoords.filter(c=>!(c.category===category&&(c.zone||selectedZone)===zone));
+        localStorage.setItem(`customCoords_${selectedZone}`,JSON.stringify(customCoords));
+        await sbSave('coords',selectedZone,customCoords);
+        renderCustomCoordsList();updateCategoryCheckboxes();renderMarkers();
+        flashRealtimeIndicator(`"${category}" limpiado`);
+      });
+
+      if(hasImg){
+        const delImgBtn=document.createElement('button');
+        delImgBtn.className='btn btn-sm btn-outline-danger ms-1';
+        delImgBtn.innerHTML='<i class="fas fa-times"></i>';
+        delImgBtn.title=`Quitar imagen de "${category}" - ${zone}`;
+        delImgBtn.addEventListener('click',async()=>{
+          delete categoryImages[imgKey];
+          localStorage.setItem('categoryImages',JSON.stringify(categoryImages));
+          await sbSaveGlobal('category_images',categoryImages);
+          updateCategoryCheckboxes();renderMarkers();
+        });
+        div.appendChild(cb);div.appendChild(lbl);div.appendChild(imgBtn);div.appendChild(delImgBtn);div.appendChild(clearBtn);div.appendChild(fileInp);
+      } else {
+        div.appendChild(cb);div.appendChild(lbl);div.appendChild(imgBtn);div.appendChild(clearBtn);div.appendChild(fileInp);
+      }
+
       container.appendChild(div);
       cb.addEventListener('change',function(){localStorage.setItem(this.id,this.checked);renderMarkers();});
     });
@@ -833,7 +886,6 @@ function renderCustomCoordsList(){
   updateCategoryCheckboxes();
 }
 
-// ─── Delete / restore by category ────────────────────────────────────────────
 function deleteRecordsByCategory(category){
   const html=`<div class="modal fade" id="delCatModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Confirmar Eliminación</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p>¿Eliminar permanentemente la categoría <strong>${category}</strong>?</p></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-danger" id="del-cat-confirm">Eliminar</button></div></div></div></div>`;
   const mc=document.createElement('div');mc.innerHTML=html;document.body.appendChild(mc);
@@ -868,8 +920,7 @@ async function restoreRecordsByCategory(category){
 // ─── Detail panel ─────────────────────────────────────────────────────────────
 function showRecordDetails(record){
   currentRecord=record;
-  const detailPanel=document.getElementById('detail-panel'),
-        recordDetails=document.getElementById('record-details');
+  const detailPanel=document.getElementById('detail-panel'),recordDetails=document.getElementById('record-details');
   const isManual=!record.Codigo&&record.category!==undefined;
   let html='';
   if(isManual){
@@ -932,7 +983,6 @@ function showRecordDetails(record){
   renderTechnicianSummary();
 }
 
-// ─── Statistics ───────────────────────────────────────────────────────────────
 function updateStatistics(){
   const n=allRecords.filter(r=>!r.Tecnico).length;
   const el=document.getElementById('no-tech-summary');
@@ -952,7 +1002,6 @@ function renderTechnicianSummary(){
   sc.innerHTML=html;
 }
 
-// ─── Search ───────────────────────────────────────────────────────────────────
 function searchByCodigo(){
   const raw=document.getElementById('codigo-search').value.trim();
   const msgEl=document.getElementById('codigo-search-msg');msgEl.textContent='';
@@ -961,29 +1010,20 @@ function searchByCodigo(){
   const record=allRecords.find(r=>{const c=r.Codigo,cn=Number(c);return !isNaN(num)&&!isNaN(cn)?cn===num:String(c)===raw;});
   if(!record){msgEl.textContent=`Código "${raw}" no encontrado.`;return;}
   map.setView([record.latitud_Y,record.longitud_X],16);
-  L.popup({offset:[0,-15]}).setLatLng([record.latitud_Y,record.longitud_X]).setContent(`<strong>Código:</strong> ${record.Codigo}<br><strong>Cliente:</strong> ${record.Cliente}`).openOn(map);
+  const popupHTML=`<div><strong>Código:</strong> ${record.Codigo}<br><strong>Cliente:</strong> ${record.Cliente}<br><strong>Dirección:</strong> ${record.Direccion}<br><strong>Estado:</strong> ${record.Estado}</div>`;
+  L.popup({offset:[0,-15]}).setLatLng([record.latitud_Y,record.longitud_X]).setContent(popupHTML).openOn(map);
+  // Resaltar el pin encontrado
+  const match=markers.find(m=>m.record&&(m.record.id===record.id||m.record.Codigo===record.Codigo));
+  if(match&&match.getElement){
+    const el=match.getElement();
+    if(el){el.classList.add('glow');setTimeout(()=>el.classList.remove('glow'),3000);}
+  }
   showRecordDetails(record);
 }
 
-// ─── Downloads ────────────────────────────────────────────────────────────────
-function downloadRecordsAsExcel(){
-  const cols=['id','Codigo','Cliente','Direccion','longitud_X','latitud_Y','Ubicacion','Location','Distrito','Tecnico','Estado','Observaciones','Estado2','Tramo','Negocio'];
-  const wb=XLSX.utils.book_new();
-  const ws=XLSX.utils.json_to_sheet(allRecords, {header: cols});
-  XLSX.utils.book_append_sheet(wb,ws,'Registros');
-  XLSX.writeFile(wb,'registros_asignados.xlsx');
-}
-function downloadRecordsAsCSV(){
-  const cols=['id','Codigo','Cliente','Direccion','longitud_X','latitud_Y','Ubicacion','Location','Distrito','Tecnico','Estado','Observaciones','Estado2','Tramo','Negocio'];
-  const ws=XLSX.utils.json_to_sheet(allRecords, {header: cols});
-  const csv=XLSX.utils.sheet_to_csv(ws);
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download='registros_asignados.csv';
-  a.click();
-}
+function downloadRecordsAsExcel(){const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(allRecords),'Registros');XLSX.writeFile(wb,'registros_asignados.xlsx');}
+function downloadRecordsAsCSV(){const csv=XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(allRecords));const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='registros_asignados.csv';a.click();}
 
-// ─── Suggestions ─────────────────────────────────────────────────────────────
 function getTechnicianSuggestions(record){
   if(record.Tecnico)return[];
   const wl={},byD={};
@@ -992,43 +1032,83 @@ function getTechnicianSuggestions(record){
   return Object.keys(wl).map(t=>({t,score:(inD.includes(t)?100:0)-(wl[t]*5)})).sort((a,b)=>b.score-a.score).slice(0,5).map(x=>x.t);
 }
 
-// ─── Countdown ────────────────────────────────────────────────────────────────
 function startCountdownTimer(){if(countdownInterval)clearInterval(countdownInterval);countdownInterval=setInterval(updateCountdowns,1000);}
 function updateCountdowns(){
-  const now=new Date(),hour=now.getHours();let soon=0;
-  markers.filter(m=>m.record&&m.record.Estado&&/^Pendiente\s*-\s*(8\/12|12\/16|16\/20)$/.test(m.record.Estado)).forEach(marker=>{
-    const iv=getIntervalFromRange(marker.record.Estado.split('-')[1].trim());
-    if(!iv||hour<iv.start||hour>=iv.end)return;
-    const end=new Date(now);end.setHours(iv.end,0,0,0);
-    const rem=end-now;const min=Math.floor(rem/60000),sec=Math.floor((rem%60000)/1000);
-    if(min<=0&&sec<=0){onCountdownEnd(marker.record,marker);return;}
-    if(min<=10)soon++;
-    const el=marker.getElement();if(!el)return;
+  const now=new Date();
+  const hour=now.getHours(),min=now.getMinutes(),sec=now.getSeconds();
+  const nowSegs=hour*3600+min*60+sec;
+  let soon=0;
+
+  markers.forEach(marker=>{
+    if(!marker.record||!marker.record.Estado) return;
+    const estado=marker.record.Estado;
+    const match=estado.match(/(8\/12|12\/16|16\/20)/);
+    if(!match||!/pendiente/i.test(estado)) return;
+    const iv=getIntervalFromRange(match[1]);
+    if(!iv) return;
+
+    const venceSegs  = iv.end*3600;
+    const alertaSegs = venceSegs-3600;
+    const restaSegs  = venceSegs-nowSegs;
+
+    let el=null;
+    try{el=marker.getElement();}catch(e){}
+    if(!el) return;
+
+    // Buscar o crear overlay dentro del elemento del marker
     let ov=el.querySelector('.countdown-overlay');
-    if(!ov){ov=document.createElement('div');ov.className='countdown-overlay';el.appendChild(ov);}
-    ov.style.display='block';ov.textContent=`${String(min).padStart(2,'0')}:${String(sec).padStart(2,'00')}`;
+
+    if(nowSegs>=venceSegs){
+      if(!ov){ov=document.createElement('div');ov.className='countdown-overlay';el.insertBefore(ov,el.firstChild);}
+      ov.style.cssText='display:block!important;background:rgba(200,0,0,0.92)!important;color:white!important;font-weight:bold!important;position:absolute!important;top:-18px!important;left:0!important;min-width:55px!important;white-space:nowrap!important;font-size:10px!important;padding:2px 5px!important;border-radius:3px!important;z-index:9999!important;pointer-events:none!important;overflow:visible!important;';
+      ov.textContent='VENCIDO';
+      return;
+    }
+
+    if(nowSegs>=alertaSegs&&nowSegs<venceSegs){
+      const mm=Math.floor(restaSegs/60);
+      const ss=Math.floor(restaSegs%60);
+      if(!ov){ov=document.createElement('div');ov.className='countdown-overlay';el.insertBefore(ov,el.firstChild);}
+      ov.style.cssText='display:block!important;background:rgba(200,0,0,0.85)!important;color:white!important;font-weight:bold!important;position:absolute!important;top:-18px!important;left:0!important;min-width:45px!important;white-space:nowrap!important;font-size:10px!important;padding:2px 5px!important;border-radius:3px!important;z-index:9999!important;pointer-events:none!important;overflow:visible!important;';
+      ov.textContent=`⚠ ${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'00')}`;
+      soon++;
+    } else {
+      if(ov) ov.style.display='none';
+    }
   });
+
   const go=document.getElementById('global-timer-overlay');
-  if(go){go.style.display=soon>0?'block':'none';if(soon>0)go.textContent=`${soon} pendiente${soon!==1?'s':''} por vencer`;}
+  if(go){
+    go.style.display=soon>0?'block':'none';
+    if(soon>0) go.textContent=`⚠ ${soon} pendiente${soon!==1?'s':''} por vencer`;
+  }
 }
-function getIntervalFromRange(tr){return [{name:'8/12',start:8,end:12},{name:'12/16',start:12,end:16},{name:'16/20',start:16,end:20}].find(i=>i.name===tr)||null;}
+function getIntervalFromRange(tr){
+  if(!tr) return null;
+  const clean=tr.trim();
+  return [{name:'8/12',start:8,end:12},{name:'12/16',start:12,end:16},{name:'16/20',start:16,end:20}].find(i=>i.name===clean)||null;
+}
 function onCountdownEnd(record,marker){
-  const el=marker.getElement();if(el)el.classList.add('countdown-expired');
-  marker.bindPopup(`Tiempo agotado (${record.Estado})`).openPopup();
-  document.getElementById('alert-sound')?.play();
-  if(Notification.permission==='granted')new Notification('Tiempo agotado',{body:`Registro ${record.Codigo} expirado`});
+  const el=marker.getElement();if(!el)return;
+  el.classList.add('countdown-expired');
+  // Sin popup que interrumpa — solo overlay rojo fijo
+  let ov=el.querySelector('.countdown-overlay');
+  if(!ov){ov=document.createElement('div');ov.className='countdown-overlay';el.appendChild(ov);}
+  ov.style.display='block';
+  ov.style.background='rgba(200,0,0,0.90)';
+  ov.style.color='white';
+  ov.style.fontWeight='bold';
+  ov.textContent='ORDEN VENCIDA';
 }
 function shouldApplyFormatting(estado){
-  if(!estado) return false;
-  // Lee directamente de localStorage en cada llamada, independiente de cualquier otra acción
-  if(/Pendiente\s*-\s*8\/12/.test(estado))  return localStorage.getItem('format-8-12')  === 'true';
-  if(/Pendiente\s*-\s*12\/16/.test(estado)) return localStorage.getItem('format-12-16') === 'true';
-  if(/Pendiente\s*-\s*16\/20/.test(estado)) return localStorage.getItem('format-16-20') === 'true';
+  if(!estado)return false;const hour=new Date().getHours();
+  if(/Pendiente\s*-\s*8\/12/.test(estado))return localStorage.getItem('format-8-12')==='true'&&hour>=8&&hour<12;
+  if(/Pendiente\s*-\s*12\/16/.test(estado))return localStorage.getItem('format-12-16')==='true'&&hour>=12&&hour<16;
+  if(/Pendiente\s*-\s*16\/20/.test(estado))return localStorage.getItem('format-16-20')==='true'&&hour>=16&&hour<20;
   return false;
 }
 function updateFormatToggleLabel(toggle){const lbl=document.querySelector(`label[for="${toggle.id}"]`);if(lbl)lbl.classList.toggle('bg-yellow',toggle.checked);}
 
-// ─── Map styles ───────────────────────────────────────────────────────────────
 const MAP_STYLES=[
   {name:'CartoDB Positron',url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',attribution:'&copy; CartoDB'},
   {name:'Light Mode',url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',attribution:'&copy; OpenStreetMap'},
@@ -1045,8 +1125,7 @@ function applyMapStyle(name){
   localStorage.setItem('selectedStyle',s.name);highlightSidebarStyle(s.name);
 }
 function setupStyleLegend(){
-  const menu=document.querySelector('#style-legend .dropdown-menu');if(!menu)return;
-  menu.innerHTML='';
+  const menu=document.querySelector('#style-legend .dropdown-menu');if(!menu)return;menu.innerHTML='';
   MAP_STYLES.forEach(s=>{
     const li=document.createElement('li');li.innerHTML=`<a class="dropdown-item" href="#">${s.name}</a>`;
     li.querySelector('a').addEventListener('click',e=>{e.preventDefault();applyMapStyle(s.name);});
@@ -1069,29 +1148,49 @@ function highlightSidebarStyle(name){document.querySelectorAll('#sidebar-style-l
 function showContextMenu(x,y,record){
   const cm=document.getElementById('context-menu');if(!cm)return;
   cm.style.left=`${x}px`;cm.style.top=`${y}px`;
+  // technicianList ya viene fresco de Supabase (nunca de localStorage)
   technicianList.sort((a,b)=>a.localeCompare(b));
-  let html=`<div class="context-menu-header">Asignar Técnico</div><div class="context-menu-item" data-tech="">Sin técnico</div><div class="context-menu-separator"></div>`;
-  technicianList.forEach(t=>{html+=`<div class="context-menu-item${t===record.Tecnico?' bg-light fw-bold':''}" data-tech="${t}">${t}</div>`;});
-  html+=`<div class="context-menu-separator"></div><div class="context-menu-item text-danger" data-action="delete-tech">Eliminar Técnico</div><div class="context-menu-separator"></div><input type="text" class="form-control form-control-sm context-menu-input" id="new-tech-input" placeholder="Nuevo técnico..."><button class="btn btn-sm btn-primary context-menu-add-btn" id="add-tech-btn">Agregar Técnico</button>`;
+  let html=`<div class="context-menu-header">Asignar Técnico</div>
+    <div class="context-menu-item" data-tech="">Sin técnico</div>
+    <div class="context-menu-separator"></div>`;
+  technicianList.forEach(t=>{
+    html+=`<div class="context-menu-item${t===record.Tecnico?' bg-light fw-bold':''}" data-tech="${t}">${t}</div>`;
+  });
+  html+=`<div class="context-menu-separator"></div>
+    <div class="context-menu-item text-danger" data-action="delete-tech">Eliminar Técnico de la lista</div>
+    <div class="context-menu-separator"></div>
+    <input type="text" class="form-control form-control-sm context-menu-input" id="new-tech-input" placeholder="Nuevo técnico...">
+    <button class="btn btn-sm btn-primary context-menu-add-btn" id="add-tech-btn">Agregar Técnico</button>`;
   cm.innerHTML=html;cm.style.display='block';
+
   cm.querySelectorAll('.context-menu-item').forEach(item=>{
     item.addEventListener('click',async function(){
       if(this.getAttribute('data-action')==='delete-tech'){
-        const cur=record.Tecnico;if(!cur||!confirm(`¿Eliminar al técnico "${cur}" de la lista?`)){cm.style.display='none';return;}
+        const cur=record.Tecnico;
+        if(!cur||!confirm(`¿Eliminar al técnico "${cur}" de la lista?`)){cm.style.display='none';return;}
         technicianList=technicianList.filter(t=>t!==cur);
-        localStorage.setItem('technicianList',JSON.stringify(technicianList));
         await sbSaveGlobal('technician_list',technicianList);
-        updateRecordTechnician(record.id,'');showContextMenu(x,y,record);return;
+        // localStorage se actualiza solo via listener realtime
+        await updateRecordTechnician(record.id,'');
+        showContextMenu(x,y,{...record,Tecnico:''});
+        return;
       }
-      updateRecordTechnician(record.id,this.getAttribute('data-tech'));
+      await updateRecordTechnician(record.id,this.getAttribute('data-tech'));
       showRecordDetails(record);cm.style.display='none';
     });
   });
+
   async function addNewTech(){
     const inp=document.getElementById('new-tech-input');if(!inp||!inp.value.trim())return;
     const nt=inp.value.trim();
-    if(!technicianList.includes(nt)){technicianList.push(nt);technicianList.sort((a,b)=>a.localeCompare(b));localStorage.setItem('technicianList',JSON.stringify(technicianList));await sbSaveGlobal('technician_list',technicianList);}
-    updateRecordTechnician(record.id,nt);showRecordDetails(record);cm.style.display='none';
+    if(!technicianList.includes(nt)){
+      technicianList.push(nt);
+      technicianList.sort((a,b)=>a.localeCompare(b));
+      await sbSaveGlobal('technician_list',technicianList);
+      // localStorage se actualiza solo via listener realtime
+    }
+    await updateRecordTechnician(record.id,nt);
+    showRecordDetails(record);cm.style.display='none';
   }
   document.getElementById('add-tech-btn')?.addEventListener('click',addNewTech);
   document.getElementById('new-tech-input')?.addEventListener('keypress',e=>{if(e.key==='Enter')addNewTech();});
