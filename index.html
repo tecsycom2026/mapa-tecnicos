@@ -431,16 +431,41 @@ async function loadZoneData(zone) {
       sbLoad('records', zone),
       sbLoad('coords',  zone)
     ]);
-    allRecords   = Array.isArray(recData)   ? recData   : (recData   ? Object.values(recData)   : []);
-    customCoords = Array.isArray(coordData) ? coordData : (coordData ? Object.values(coordData) : []);
-    localStorage.setItem(`records_${zone}`,      JSON.stringify(allRecords));
-    localStorage.setItem(`customCoords_${zone}`, JSON.stringify(customCoords));
+
+    // Si Supabase tiene datos usarlos, si no usar localStorage como fallback
+    if(recData !== null){
+      allRecords = Array.isArray(recData) ? recData : Object.values(recData);
+      localStorage.setItem(`records_${zone}`, JSON.stringify(allRecords));
+    } else {
+      const local = localStorage.getItem(`records_${zone}`);
+      allRecords = local ? JSON.parse(local) : [];
+    }
+
+    if(coordData !== null){
+      customCoords = Array.isArray(coordData) ? coordData : Object.values(coordData);
+      localStorage.setItem(`customCoords_${zone}`, JSON.stringify(customCoords));
+    } else {
+      const local = localStorage.getItem(`customCoords_${zone}`);
+      customCoords = local ? JSON.parse(local) : [];
+    }
+
+    // Reset zoom para que fitBounds muestre los datos de la zona nueva
+    window._userHasZoomed = false;
+
     populateFilters(); renderMarkers(); updateStatistics();
     renderCustomCoordsList(); updateCategoryCheckboxes();
     showLoading(false);
     subscribeToZone(zone);
   } catch(e) {
     console.error('loadZoneData error:', e);
+    // Fallback a localStorage si Supabase falla
+    const localRec = localStorage.getItem(`records_${zone}`);
+    const localCoord = localStorage.getItem(`customCoords_${zone}`);
+    allRecords   = localRec   ? JSON.parse(localRec)   : [];
+    customCoords = localCoord ? JSON.parse(localCoord) : [];
+    window._userHasZoomed = false;
+    populateFilters(); renderMarkers(); updateStatistics();
+    renderCustomCoordsList(); updateCategoryCheckboxes();
     showLoading(false);
   }
 }
@@ -1101,10 +1126,10 @@ function onCountdownEnd(record,marker){
   ov.textContent='ORDEN VENCIDA';
 }
 function shouldApplyFormatting(estado){
-  if(!estado)return false;const hour=new Date().getHours();
-  if(/Pendiente\s*-\s*8\/12/.test(estado))return localStorage.getItem('format-8-12')==='true'&&hour>=8&&hour<12;
-  if(/Pendiente\s*-\s*12\/16/.test(estado))return localStorage.getItem('format-12-16')==='true'&&hour>=12&&hour<16;
-  if(/Pendiente\s*-\s*16\/20/.test(estado))return localStorage.getItem('format-16-20')==='true'&&hour>=16&&hour<20;
+  if(!estado) return false;
+  if(/8\/12/.test(estado)&&/pendiente/i.test(estado))  return localStorage.getItem('format-8-12')==='true';
+  if(/12\/16/.test(estado)&&/pendiente/i.test(estado)) return localStorage.getItem('format-12-16')==='true';
+  if(/16\/20/.test(estado)&&/pendiente/i.test(estado)) return localStorage.getItem('format-16-20')==='true';
   return false;
 }
 function updateFormatToggleLabel(toggle){const lbl=document.querySelector(`label[for="${toggle.id}"]`);if(lbl)lbl.classList.toggle('bg-yellow',toggle.checked);}
