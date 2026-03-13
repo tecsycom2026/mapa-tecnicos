@@ -62,6 +62,7 @@
     #realtime-indicator.fade-out { opacity:0; }
     #sidebar-style-legend li { cursor:pointer; padding:4px 8px; border-radius:4px; }
     #sidebar-style-legend li.active { background:#0d6efd; color:#fff; }
+    @keyframes arrowBounce { 0%{transform:translateX(-50%) translateY(0)} 100%{transform:translateX(-50%) translateY(-4px)} }
   </style>
 </head>
 <body>
@@ -589,7 +590,7 @@ function renderMarkersFromRecords(records) {
 
     // Detectar si tiene pendiente con tramo
     const matchTramo=estado.match(/(8\/12|12\/16|16\/20)/);
-    const esPendiente=matchTramo&&/pendiente/i.test(estado);
+    const esPendiente=matchTramo&&/(pendiente|coord)/i.test(estado);
     const iv=esPendiente?getIntervalFromRange(matchTramo[1]):null;
     const now=new Date();
     const nowSegs=now.getHours()*3600+now.getMinutes()*60+now.getSeconds();
@@ -598,19 +599,22 @@ function renderMarkersFromRecords(records) {
     const yaVencio=venceSegs&&nowSegs>=venceSegs;
     const enAlerta=alertaSegs&&nowSegs>=alertaSegs&&nowSegs<venceSegs;
 
+    // Flecha ↓ solo para pins sin técnico asignado
+    const sinTecnico=!record.Tecnico;
+    const flechaHtml=sinTecnico?`<div style="position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:14px;line-height:1;z-index:9998;pointer-events:none;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.5));animation:arrowBounce 1s ease-in-out infinite alternate;">▼</div>`:'';
+
     let marker;
     if(imgSrc){
-      // Con imagen: envolver en div para poder agregar overlay
       const wrapId=`mw-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       let overlayHtml='';
       if(yaVencio) overlayHtml=`<div class="countdown-overlay" style="display:block;background:rgba(200,0,0,0.90);color:white;font-weight:bold;position:absolute;top:-14px;left:0;width:100%;text-align:center;font-size:10px;padding:1px;z-index:10;pointer-events:none;white-space:nowrap;">ORDEN VENCIDA</div>`;
-      const iconHtml=`<div id="${wrapId}" style="position:relative;width:30px;height:30px;overflow:visible;">${overlayHtml}<img src="${imgSrc}" style="width:30px;height:30px;border-radius:50%;"/></div>`;
+      const iconHtml=`<div id="${wrapId}" style="position:relative;width:30px;height:30px;overflow:visible;">${!yaVencio?flechaHtml:''}${overlayHtml}<img src="${imgSrc}" style="width:30px;height:30px;border-radius:50%;"/></div>`;
       marker=L.marker([lat,lng],{icon:L.divIcon({className:'',html:iconHtml,iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
       if(showTips)marker.bindTooltip(estado,{permanent:true,direction:'right',className:shouldApplyFormatting(estado)?'estado-label estado-pendiente':'estado-label',offset:[5,0]});
     } else {
       let overlayHtml='';
       if(yaVencio) overlayHtml=`<div class="countdown-overlay" style="display:block;background:rgba(200,0,0,0.90);color:white;font-weight:bold;position:absolute;top:-14px;left:0;width:30px;text-align:center;font-size:10px;padding:1px;z-index:10;pointer-events:none;white-space:nowrap;">ORDEN VENCIDA</div>`;
-      let html=`<div style="position:relative;overflow:visible;">${overlayHtml}<div class="custom-pin" style="--color:${color}">${estado.charAt(0)}</div></div>`;
+      let html=`<div style="position:relative;overflow:visible;">${!yaVencio?flechaHtml:''}${overlayHtml}<div class="custom-pin" style="--color:${color}">${estado.charAt(0)}</div></div>`;
       if(showTips)html+=`<div class="${shouldApplyFormatting(estado)?'estado-label estado-pendiente':'estado-label'}">${estado}</div>`;
       marker=L.marker([lat,lng],{icon:L.divIcon({className:'custom-marker-container',html,iconSize:[100,30],iconAnchor:[15,15]})}).addTo(map);
     }
@@ -817,47 +821,67 @@ function updateCategoryCheckboxes(){
   const counts={};
   customCoords.forEach(c=>{const z=c.zone||selectedZone;const k=`${c.category}-${z}`;counts[k]=(counts[k]||0)+1;});
   const uniq=[...new Set(customCoords.map(c=>c.category))];
+
+  // Etiquetas cortas por categoría
+  const shortName={'Zona sin Cobertura':'S/Cob','Sin FFTT':'S/FFTT','Zona Peligrosa':'Peligrosa','Dirección de Técnicos':'Técnicos'};
+
   uniq.forEach(category=>{
     ['LIMA','PROVINCIA'].forEach(zone=>{
       const k=`${category}-${zone}`;if(!counts[k])return;
       const catId=`category-${category.replace(/\s+/g,'-').toLowerCase()}-${zone}`;
-      const div=document.createElement('div');div.className='form-check d-flex align-items-center flex-wrap gap-1 mb-1';div.dataset.zone=zone;div.style.display=zone===selectedZone?'flex':'none';
-      const cb=document.createElement('input');cb.className='form-check-input';cb.type='checkbox';cb.id=catId;cb.dataset.category=category;cb.dataset.zone=zone;cb.checked=localStorage.getItem(catId)!=='false';
-      const lbl=document.createElement('label');lbl.className='form-check-label me-1';lbl.htmlFor=catId;
-      lbl.textContent=`${category==='Dirección de Técnicos'?'Técnicos':category} (${counts[k]}) - ${zone}`;
-
-      // Botón asignar imagen por categoría-zona
       const imgKey=`${category}-${zone}`;
       const hasImg=!!categoryImages[imgKey];
-      const imgBtn=document.createElement('button');
-      imgBtn.className=`btn btn-sm ${hasImg?'btn-success':'btn-outline-secondary'} assign-category-image-btn`;
-      imgBtn.innerHTML=`<i class="fas fa-image"></i>${hasImg?' ✓':''}`;
-      imgBtn.title=hasImg?`Imagen asignada a "${category}" - ${zone}. Click para cambiar`:`Asignar imagen a "${category}" - ${zone}`;
 
+      // Fila única compacta
+      const div=document.createElement('div');
+      div.dataset.zone=zone;
+      div.style.cssText=`display:${zone===selectedZone?'flex':'none'};align-items:center;gap:4px;padding:3px 4px;margin-bottom:3px;background:#f8f9fa;border-radius:5px;border:1px solid #dee2e6;`;
+
+      // Checkbox
+      const cb=document.createElement('input');cb.type='checkbox';cb.id=catId;cb.dataset.category=category;cb.dataset.zone=zone;cb.checked=localStorage.getItem(catId)!=='false';cb.style.flexShrink='0';
+
+      // Label corto
+      const lbl=document.createElement('label');lbl.htmlFor=catId;
+      lbl.style.cssText='font-size:11px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;';
+      lbl.title=`${category} - ${zone}`;
+      lbl.textContent=`${shortName[category]||category} (${counts[k]})`;
+
+      // Botón imagen
       const fileInp=document.createElement('input');fileInp.type='file';fileInp.accept='.jpg,.jpeg,.png';fileInp.className='visually-hidden';
+      const imgBtn=document.createElement('button');
+      imgBtn.style.cssText=`padding:1px 5px;font-size:10px;border-radius:3px;border:1px solid ${hasImg?'#28a745':'#6c757d'};background:${hasImg?'#28a745':'transparent'};color:${hasImg?'white':'#6c757d'};cursor:pointer;flex-shrink:0;`;
+      imgBtn.innerHTML=hasImg?'✓🖼':'🖼';
+      imgBtn.title=hasImg?`Cambiar imagen de "${category}"`:` Asignar imagen a "${category}"`;
       imgBtn.addEventListener('click',()=>fileInp.click());
-
       fileInp.addEventListener('change',async function(ev){
         const f=ev.target.files[0];if(!f)return;
         const rdr=new FileReader();
         rdr.onload=async function(e2){
-          // Guardar imagen por clave categoría-zona (independiente)
           categoryImages[imgKey]=e2.target.result;
           localStorage.setItem('categoryImages',JSON.stringify(categoryImages));
           await sbSaveGlobal('category_images',categoryImages);
-          updateCategoryCheckboxes();
-          renderMarkers();
-          alert(`Imagen asignada a "${category}" - ${zone}`);
-          fileInp.value='';
+          updateCategoryCheckboxes();renderMarkers();fileInp.value='';
         };rdr.readAsDataURL(f);
       });
 
-      // Botón quitar imagen
-      // Botón limpiar categoría
+      // Botón quitar imagen (solo si tiene)
+      if(hasImg){
+        const delImgBtn=document.createElement('button');
+        delImgBtn.style.cssText='padding:1px 5px;font-size:10px;border-radius:3px;border:1px solid #dc3545;background:transparent;color:#dc3545;cursor:pointer;flex-shrink:0;';
+        delImgBtn.innerHTML='✕';delImgBtn.title=`Quitar imagen de "${category}"`;
+        delImgBtn.addEventListener('click',async()=>{
+          delete categoryImages[imgKey];
+          localStorage.setItem('categoryImages',JSON.stringify(categoryImages));
+          await sbSaveGlobal('category_images',categoryImages);
+          updateCategoryCheckboxes();renderMarkers();
+        });
+        div.appendChild(delImgBtn);
+      }
+
+      // Botón limpiar
       const clearBtn=document.createElement('button');
-      clearBtn.className='btn btn-sm btn-outline-danger ms-1';
-      clearBtn.innerHTML='<i class="fas fa-trash"></i>';
-      clearBtn.title=`Limpiar todos los puntos de "${category}" - ${zone}`;
+      clearBtn.style.cssText='padding:1px 5px;font-size:10px;border-radius:3px;border:1px solid #dc3545;background:transparent;color:#dc3545;cursor:pointer;flex-shrink:0;';
+      clearBtn.innerHTML='🗑';clearBtn.title=`Eliminar todos los puntos de "${category}" - ${zone}`;
       clearBtn.addEventListener('click',async()=>{
         if(!confirm(`¿Eliminar todos los puntos de "${category}" - ${zone}?`))return;
         customCoords=customCoords.filter(c=>!(c.category===category&&(c.zone||selectedZone)===zone));
@@ -867,22 +891,7 @@ function updateCategoryCheckboxes(){
         flashRealtimeIndicator(`"${category}" limpiado`);
       });
 
-      if(hasImg){
-        const delImgBtn=document.createElement('button');
-        delImgBtn.className='btn btn-sm btn-outline-danger ms-1';
-        delImgBtn.innerHTML='<i class="fas fa-times"></i>';
-        delImgBtn.title=`Quitar imagen de "${category}" - ${zone}`;
-        delImgBtn.addEventListener('click',async()=>{
-          delete categoryImages[imgKey];
-          localStorage.setItem('categoryImages',JSON.stringify(categoryImages));
-          await sbSaveGlobal('category_images',categoryImages);
-          updateCategoryCheckboxes();renderMarkers();
-        });
-        div.appendChild(cb);div.appendChild(lbl);div.appendChild(imgBtn);div.appendChild(delImgBtn);div.appendChild(clearBtn);div.appendChild(fileInp);
-      } else {
-        div.appendChild(cb);div.appendChild(lbl);div.appendChild(imgBtn);div.appendChild(clearBtn);div.appendChild(fileInp);
-      }
-
+      div.appendChild(cb);div.appendChild(lbl);div.appendChild(imgBtn);div.appendChild(clearBtn);div.appendChild(fileInp);
       container.appendChild(div);
       cb.addEventListener('change',function(){localStorage.setItem(this.id,this.checked);renderMarkers();});
     });
@@ -961,7 +970,7 @@ function showRecordDetails(record){
     const techOpts='<option value="">Sin asignar</option>'+allTechs.map(t=>`<option value="${t}"${t===record.Tecnico?' selected':''}>${t}</option>`).join('');
     const eB=record.Estado==='Completado'?'bg-success':record.Estado==='En proceso'?'bg-primary':'bg-warning';
     const e2B=record.Estado2==='Normal'?'bg-info':'bg-danger';
-    const isPend=record.Estado&&/^Pendiente\s*-\s*(8\/12|12\/16|16\/20)$/.test(record.Estado);
+    const isPend=record.Estado&&/(pendiente|coord).*?(8\/12|12\/16|16\/20)/i.test(record.Estado);
     const countHtml=isPend?`<div class="col-12 mt-2"><div id="detail-countdown" class="alert alert-danger">Calculando tiempo restante para ${record.Estado}...</div></div>`:'';
     const sugg=!record.Tecnico?getTechnicianSuggestions(record):[];
     window.currentSuggestions=sugg;
@@ -1068,7 +1077,7 @@ function updateCountdowns(){
     if(!marker.record||!marker.record.Estado) return;
     const estado=marker.record.Estado;
     const match=estado.match(/(8\/12|12\/16|16\/20)/);
-    if(!match||!/pendiente/i.test(estado)) return;
+    if(!match||!/(pendiente|coord)/i.test(estado)) return;
     const iv=getIntervalFromRange(match[1]);
     if(!iv) return;
 
@@ -1127,9 +1136,9 @@ function onCountdownEnd(record,marker){
 }
 function shouldApplyFormatting(estado){
   if(!estado) return false;
-  if(/8\/12/.test(estado)&&/pendiente/i.test(estado))  return localStorage.getItem('format-8-12')==='true';
-  if(/12\/16/.test(estado)&&/pendiente/i.test(estado)) return localStorage.getItem('format-12-16')==='true';
-  if(/16\/20/.test(estado)&&/pendiente/i.test(estado)) return localStorage.getItem('format-16-20')==='true';
+  if(/8\/12/.test(estado)&&/(pendiente|coord)/i.test(estado))  return localStorage.getItem('format-8-12')==='true';
+  if(/12\/16/.test(estado)&&/(pendiente|coord)/i.test(estado)) return localStorage.getItem('format-12-16')==='true';
+  if(/16\/20/.test(estado)&&/(pendiente|coord)/i.test(estado)) return localStorage.getItem('format-16-20')==='true';
   return false;
 }
 function updateFormatToggleLabel(toggle){const lbl=document.querySelector(`label[for="${toggle.id}"]`);if(lbl)lbl.classList.toggle('bg-yellow',toggle.checked);}
