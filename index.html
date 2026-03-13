@@ -971,7 +971,7 @@ function showRecordDetails(record){
     const eB=record.Estado==='Completado'?'bg-success':record.Estado==='En proceso'?'bg-primary':'bg-warning';
     const e2B=record.Estado2==='Normal'?'bg-info':'bg-danger';
     const isPend=record.Estado&&/(pendiente|coord).*?(8\/12|12\/16|16\/20)/i.test(record.Estado);
-    const countHtml=isPend?`<div class="col-12 mt-2"><div id="detail-countdown" class="alert alert-danger">Calculando tiempo restante para ${record.Estado}...</div></div>`:'';
+    const countHtml='';
     const sugg=!record.Tecnico?getTechnicianSuggestions(record):[];
     window.currentSuggestions=sugg;
     const suggHtml=sugg.length?`<div class="col-12 mt-2"><h6>Técnicos Sugeridos:</h6><div class="d-flex flex-wrap gap-2">${sugg.map(t=>`<button class="btn btn-sm btn-outline-primary tech-suggestion-btn" data-tech="${t}">${t}</button>`).join('')}</div></div>`:'';
