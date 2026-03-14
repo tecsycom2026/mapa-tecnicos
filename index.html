@@ -540,35 +540,45 @@ function populateFilters() {
   renderTechnicianSummary();
 }
 
-function applyFilters() {
-  const t=document.getElementById('tramo-filter')?.value, e=document.getElementById('estado-filter')?.value,
-        tech=document.getElementById('tecnico-filter')?.value, neg=document.getElementById('negocio-filter')?.value,
+function getFilteredRecords(){
+  const t=document.getElementById('tramo-filter')?.value,
+        e=document.getElementById('estado-filter')?.value,
+        tech=document.getElementById('tecnico-filter')?.value,
+        neg=document.getElementById('negocio-filter')?.value,
         dist=document.getElementById('distrito-filter')?.value;
-  clearMarkers();
   let f=allRecords;
   if(t) f=f.filter(r=>r.Tramo===t);
   if(e){ if(e==='pendiente_combinado') f=f.filter(r=>['PROGRAMADO','EN CAMINO','COORDINADO'].includes(r.Estado2)); else f=f.filter(r=>r.Estado2===e); }
   if(tech) f=f.filter(r=>tech==='sin_tecnico'?!r.Tecnico:r.Tecnico===tech);
   if(neg)  f=f.filter(r=>r.Negocio===neg);
   if(dist){const nd=normalizeString(dist);f=f.filter(r=>normalizeString(r.Distrito)===nd);}
-  renderMarkersFromRecords(f);
-  // Solo hacer fitBounds si hay filtros activos, sino preservar zoom
-  if(markers.length>0 && (t||e||tech||neg||dist)){
-    window._userHasZoomed = false;
-    map.fitBounds(new L.featureGroup(markers).getBounds(),{padding:[50,50]});
-  }
+  return f;
 }
 
 function renderMarkers() {
   const currentZoom = map.getZoom();
   const currentCenter = map.getCenter();
   clearMarkers();
-  renderMarkersFromRecords(allRecords);
-  // Solo hacer fitBounds si no hay zoom previo del usuario
+  // Siempre respetar filtros activos
+  renderMarkersFromRecords(getFilteredRecords());
   if(!window._userHasZoomed){
     if(markers.length>0) map.fitBounds(new L.featureGroup(markers).getBounds(),{padding:[50,50]});
   } else {
     map.setView(currentCenter, currentZoom, {animate:false});
+  }
+}
+
+function applyFilters() {
+  clearMarkers();
+  renderMarkersFromRecords(getFilteredRecords());
+  const t=document.getElementById('tramo-filter')?.value,
+        e=document.getElementById('estado-filter')?.value,
+        tech=document.getElementById('tecnico-filter')?.value,
+        neg=document.getElementById('negocio-filter')?.value,
+        dist=document.getElementById('distrito-filter')?.value;
+  if(markers.length>0 && (t||e||tech||neg||dist)){
+    window._userHasZoomed = false;
+    map.fitBounds(new L.featureGroup(markers).getBounds(),{padding:[50,50]});
   }
 }
 
@@ -601,7 +611,7 @@ function renderMarkersFromRecords(records) {
 
     // Flecha ↓ solo para pins sin técnico asignado
     const sinTecnico=!record.Tecnico;
-    const flechaHtml=sinTecnico?`<div style="position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:14px;line-height:1;z-index:9998;pointer-events:none;filter:drop-shadow(0 1px 1px rgba(0,0,0,0.5));animation:arrowBounce 1s ease-in-out infinite alternate;">▼</div>`:'';
+    const flechaHtml=sinTecnico?`<div style="position:absolute;top:-22px;left:50%;transform:translateX(-50%);font-size:20px;line-height:1;z-index:9998;pointer-events:none;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.6));animation:arrowBounce 1s ease-in-out infinite alternate;">▼</div>`:'';
 
     let marker;
     if(imgSrc){
