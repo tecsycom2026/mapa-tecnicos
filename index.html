@@ -70,6 +70,10 @@
   <div id="sidebar">
     <div class="p-3">
       <h4 class="mb-3"><i class="fas fa-map"></i> Michell Sulca.V</h4>
+      <div id="last-upload-info" class="mb-1 small text-muted">
+        <i class="fas fa-clock me-1"></i>
+        <span id="last-upload-label">Última carga: —</span>
+      </div>
       <div id="auth-status" class="mb-2">
         <span class="badge bg-success"><i class="fas fa-cloud"></i> Supabase – tiempo real</span>
       </div>
@@ -306,8 +310,11 @@ function subscribeToZone(zone) {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'category_images', filter: `id=eq.global` }, payload => {
       const incoming = payload.new?.data;
       if (!incoming) return;
-      categoryImages = incoming;
+      // Separar _lastUpload de las imágenes reales
+      const {_lastUpload, ...imgs} = incoming;
+      categoryImages = imgs;
       localStorage.setItem('categoryImages', JSON.stringify(categoryImages));
+      if(_lastUpload) updateLastUploadLabel(_lastUpload);
       renderMarkers();
       flashRealtimeIndicator('Imágenes de categorías actualizadas');
     })
@@ -346,6 +353,10 @@ if (savedCI) categoryImages = JSON.parse(savedCI);
 
 function normalizeString(s) { return s ? s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase() : ''; }
 function showLoading(v) { document.getElementById('loading-overlay').style.display = v ? 'flex' : 'none'; }
+function updateLastUploadLabel(fecha){
+  const lbl=document.getElementById('last-upload-label');
+  if(lbl) lbl.textContent=`Última carga: ${fecha}`;
+}
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -371,6 +382,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupStyleLegend();
   setupCoordForm();
 
+  // Restaurar fecha de última carga desde Supabase
+  const savedUpload = localStorage.getItem('lastUploadDate');
+  if(savedUpload) updateLastUploadLabel(savedUpload);
+
   ['format-8-12','format-12-16','format-16-20'].forEach(id => {
     const el = document.getElementById(id); if (!el) return;
     el.checked = localStorage.getItem(id) === 'true';
@@ -388,10 +403,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fbTI = await sbLoadGlobal('tech_images');
   if (fbTI) { techImages = fbTI; localStorage.setItem('techImages', JSON.stringify(techImages)); }
 
-  // ── Cargar imágenes por categoría ─────────────────────────────────────────
-  const fbCI = await sbLoadGlobal('tech_images');
+  // Restaurar fecha de última carga desde Supabase
   const fbCatImg = await sbLoadGlobal('category_images');
-  if (fbCatImg) { categoryImages = fbCatImg; localStorage.setItem('categoryImages', JSON.stringify(categoryImages)); }
+  if(fbCatImg){
+    const {_lastUpload, ...imgs} = fbCatImg;
+    categoryImages = imgs;
+    localStorage.setItem('categoryImages', JSON.stringify(categoryImages));
+    if(_lastUpload) updateLastUploadLabel(_lastUpload);
+  }
 
   // ── Cargar lista de técnicos SIEMPRE desde Supabase (nunca localStorage) ──
   localStorage.removeItem('technicianList'); // limpiar cache local siempre
@@ -617,13 +636,13 @@ function renderMarkersFromRecords(records) {
     if(imgSrc){
       const wrapId=`mw-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       let overlayHtml='';
-      if(yaVencio) overlayHtml=`<div class="countdown-overlay" style="display:block;background:rgba(200,0,0,0.90);color:white;font-weight:bold;position:absolute;top:-14px;left:0;width:100%;text-align:center;font-size:10px;padding:1px;z-index:10;pointer-events:none;white-space:nowrap;">VENCIDO</div>`;
+      if(yaVencio) overlayHtml=`<div class="countdown-overlay" style="display:block;background:rgba(200,0,0,0.90);color:white;font-weight:bold;position:absolute;top:-14px;left:0;width:100%;text-align:center;font-size:10px;padding:1px;z-index:10;pointer-events:none;white-space:nowrap;">ORDEN VENCIDA</div>`;
       const iconHtml=`<div id="${wrapId}" style="position:relative;width:30px;height:30px;overflow:visible;">${!yaVencio?flechaHtml:''}${overlayHtml}<img src="${imgSrc}" style="width:30px;height:30px;border-radius:50%;"/></div>`;
       marker=L.marker([lat,lng],{icon:L.divIcon({className:'',html:iconHtml,iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
       if(showTips)marker.bindTooltip(estado,{permanent:true,direction:'right',className:shouldApplyFormatting(estado)?'estado-label estado-pendiente':'estado-label',offset:[5,0]});
     } else {
       let overlayHtml='';
-      if(yaVencio) overlayHtml=`<div class="countdown-overlay" style="display:block;background:rgba(200,0,0,0.90);color:white;font-weight:bold;position:absolute;top:-14px;left:0;width:30px;text-align:center;font-size:10px;padding:1px;z-index:10;pointer-events:none;white-space:nowrap;">VENCIDO</div>`;
+      if(yaVencio) overlayHtml=`<div class="countdown-overlay" style="display:block;background:rgba(200,0,0,0.90);color:white;font-weight:bold;position:absolute;top:-14px;left:0;width:30px;text-align:center;font-size:10px;padding:1px;z-index:10;pointer-events:none;white-space:nowrap;">ORDEN VENCIDA</div>`;
       let html=`<div style="position:relative;overflow:visible;">${!yaVencio?flechaHtml:''}${overlayHtml}<div class="custom-pin" style="--color:${color}">${estado.charAt(0)}</div></div>`;
       if(showTips)html+=`<div class="${shouldApplyFormatting(estado)?'estado-label estado-pendiente':'estado-label'}">${estado}</div>`;
       marker=L.marker([lat,lng],{icon:L.divIcon({className:'custom-marker-container',html,iconSize:[100,30],iconAnchor:[15,15]})}).addTo(map);
@@ -720,7 +739,12 @@ function handleExcelUpload(e){
       newRecords.push({id:row.id||row.ID||row.Codigo||Date.now()+Math.random(),Codigo:row.Codigo,Cliente:row.Cliente,Direccion:row.Direccion,longitud_X:lng,latitud_Y:lat,Ubicacion:row.Ubicacion,Location:row.Location||row.location||row.LOCATION||'',Distrito:row.Distrito,Tecnico:row.Tecnico,Estado:row.Estado,Observaciones:row.Observaciones,Estado2:row.Estado2,Tramo:row.Tramo,Negocio:row.Negocio});
     });
     allRecords=newRecords;
-    window._userHasZoomed = false; // reset para que fitBounds aplique al cargar nuevo archivo
+    window._userHasZoomed = false;
+    // Guardar y mostrar fecha/hora de última carga en Supabase (visible para todos)
+    const now=new Date();
+    const fechaStr=now.toLocaleDateString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+now.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    await sbSaveGlobal('category_images', {...(await sbLoadGlobal('category_images')||{}), _lastUpload: fechaStr});
+    updateLastUploadLabel(fechaStr);
     localStorage.setItem(`records_${selectedZone}`,JSON.stringify(allRecords));
     await sbSave('records',selectedZone,allRecords);
     flashRealtimeIndicator(`${newRecords.length} registros publicados en tiempo real`);
@@ -869,7 +893,8 @@ function updateCategoryCheckboxes(){
         rdr.onload=async function(e2){
           categoryImages[imgKey]=e2.target.result;
           localStorage.setItem('categoryImages',JSON.stringify(categoryImages));
-          await sbSaveGlobal('category_images',categoryImages);
+          const current=await sbLoadGlobal('category_images')||{};
+          await sbSaveGlobal('category_images',{...current,...categoryImages});
           updateCategoryCheckboxes();renderMarkers();fileInp.value='';
         };rdr.readAsDataURL(f);
       });
@@ -882,7 +907,9 @@ function updateCategoryCheckboxes(){
         delImgBtn.addEventListener('click',async()=>{
           delete categoryImages[imgKey];
           localStorage.setItem('categoryImages',JSON.stringify(categoryImages));
-          await sbSaveGlobal('category_images',categoryImages);
+          const current=await sbLoadGlobal('category_images')||{};
+          delete current[imgKey];
+          await sbSaveGlobal('category_images',current);
           updateCategoryCheckboxes();renderMarkers();
         });
         div.appendChild(delImgBtn);
@@ -1142,7 +1169,7 @@ function onCountdownEnd(record,marker){
   ov.style.background='rgba(200,0,0,0.90)';
   ov.style.color='white';
   ov.style.fontWeight='bold';
-  ov.textContent='VENCIDO';
+  ov.textContent='ORDEN VENCIDA';
 }
 function shouldApplyFormatting(estado){
   if(!estado) return false;
