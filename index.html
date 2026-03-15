@@ -72,7 +72,7 @@
       <h4 class="mb-3"><i class="fas fa-map"></i> Michell Sulca.V</h4>
       <div id="last-upload-info" class="mb-1 small text-muted">
         <i class="fas fa-clock me-1"></i>
-        <span id="last-upload-label">Última carga: —</span>
+        <span id="last-upload-label">Últ. carga: —</span>
       </div>
       <div id="auth-status" class="mb-2">
         <span class="badge bg-success"><i class="fas fa-cloud"></i> Supabase – tiempo real</span>
@@ -355,7 +355,7 @@ function normalizeString(s) { return s ? s.normalize('NFD').replace(/[\u0300-\u0
 function showLoading(v) { document.getElementById('loading-overlay').style.display = v ? 'flex' : 'none'; }
 function updateLastUploadLabel(fecha){
   const lbl=document.getElementById('last-upload-label');
-  if(lbl) lbl.textContent=`Última carga: ${fecha}`;
+  if(lbl) lbl.textContent=`Últ. carga: ${fecha}`;
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
