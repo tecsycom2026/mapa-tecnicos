@@ -341,8 +341,16 @@ function subscribeToZone(zone) {
       renderMarkers();
       flashRealtimeIndicator('Imágenes de categorías actualizadas');
     })
+    .subscribe();
+}
+
+// ─── GPS channel (independiente, no se destruye al cambiar zona) ──────────────
+let _gpsChannel = null;
+
+function subscribeGps(){
+  if(_gpsChannel){ sb.removeChannel(_gpsChannel); _gpsChannel=null; }
+  _gpsChannel = sb.channel('gps_tracking')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'user_locations' }, payload => {
-      // Agregar o actualizar ubicación del técnico
       if(payload.eventType==='DELETE'){
         delete gpsMarkers[payload.old?.id];
       } else {
@@ -508,6 +516,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   showLoading(true);
   await loadZoneData(selectedZone);
   await loadGpsMarkers();
+  subscribeGps();
 });
 
 // ─── Load zone data ───────────────────────────────────────────────────────────
