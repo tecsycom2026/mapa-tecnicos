@@ -72,7 +72,7 @@
       <h4 class="mb-3"><i class="fas fa-map"></i> Michell Sulca.V</h4>
       <div id="last-upload-info" class="mb-1 small text-muted">
         <i class="fas fa-clock me-1"></i>
-        <span id="last-upload-label">Últ. carga: —</span>
+        <span id="last-upload-label">Última carga: —</span>
       </div>
       <div id="auth-status" class="mb-2">
         <span class="badge bg-success"><i class="fas fa-cloud"></i> Supabase – tiempo real</span>
@@ -213,6 +213,30 @@
           <h6>Resumen por Técnico</h6>
           <div id="tech-summary-content" class="small"><div class="text-center text-muted">Cargando...</div></div>
         </div>
+
+        <!-- Panel gestión de PINs -->
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePins">🔐 Gestión de PINs</button>
+          </h2>
+          <div id="collapsePins" class="accordion-collapse collapse">
+            <div class="accordion-body">
+              <p class="small text-muted mb-2">Asigna un PIN inicial a cada técnico. El técnico podrá cambiarlo desde su visor.</p>
+              <div class="mb-2">
+                <label class="form-label small">Técnico:</label>
+                <select id="pin-tecnico-select" class="form-select form-select-sm">
+                  <option value="">Selecciona técnico</option>
+                </select>
+              </div>
+              <div class="mb-2">
+                <label class="form-label small">PIN (4 dígitos):</label>
+                <input type="number" id="pin-input" class="form-control form-control-sm" placeholder="Ej: 1234" maxlength="4" min="1000" max="9999">
+              </div>
+              <button id="save-pin-btn" class="btn btn-primary btn-sm w-100">Guardar PIN</button>
+              <div id="pin-msg" class="small mt-2"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -310,7 +334,6 @@ function subscribeToZone(zone) {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'category_images', filter: `id=eq.global` }, payload => {
       const incoming = payload.new?.data;
       if (!incoming) return;
-      // Separar _lastUpload de las imágenes reales
       const {_lastUpload, ...imgs} = incoming;
       categoryImages = imgs;
       localStorage.setItem('categoryImages', JSON.stringify(categoryImages));
@@ -318,7 +341,49 @@ function subscribeToZone(zone) {
       renderMarkers();
       flashRealtimeIndicator('Imágenes de categorías actualizadas');
     })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'user_locations' }, payload => {
+      // Agregar o actualizar ubicación del técnico
+      if(payload.eventType==='DELETE'){
+        delete gpsMarkers[payload.old?.id];
+      } else {
+        const u=payload.new;
+        if(u) gpsMarkers[u.id]={nombre:u.nombre,lat:u.lat,lng:u.lng,updated_at:u.updated_at};
+      }
+      renderGpsMarkers();
+      flashRealtimeIndicator('Ubicación de técnico actualizada');
+    })
     .subscribe();
+}
+
+// ─── GPS Markers (ubicaciones en tiempo real de técnicos) ─────────────────────
+let gpsMarkers = {}; // { id: {nombre, lat, lng, updated_at} }
+let gpsLeafletMarkers = {};
+
+async function loadGpsMarkers(){
+  const {data,error}=await sb.from('user_locations').select('*');
+  if(error||!data) return;
+  data.forEach(u=>{ gpsMarkers[u.id]={nombre:u.nombre,lat:u.lat,lng:u.lng,updated_at:u.updated_at}; });
+  renderGpsMarkers();
+}
+
+function renderGpsMarkers(){
+  // Eliminar markers GPS anteriores del mapa
+  Object.values(gpsLeafletMarkers).forEach(m=>map.removeLayer(m));
+  gpsLeafletMarkers={};
+  Object.entries(gpsMarkers).forEach(([id,u])=>{
+    const iconHtml=`
+      <div style="position:relative;text-align:center;background:transparent;">
+        <div style="font-size:22px;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.4));">🚗</div>
+        <div style="background:white;color:#333;font-size:10px;font-weight:bold;padding:2px 6px;border-radius:8px;white-space:nowrap;margin-top:2px;box-shadow:0 1px 4px rgba(0,0,0,0.25);border:1px solid #ddd;">${u.nombre}</div>
+      </div>`;
+    const marker=L.marker([u.lat,u.lng],{
+      icon:L.divIcon({className:'',html:iconHtml,iconSize:[80,50],iconAnchor:[16,16]}),
+      zIndexOffset:2000
+    }).addTo(map);
+    const mins=Math.floor((Date.now()-new Date(u.updated_at))/60000);
+    marker.bindPopup(`<div style="font-size:13px;"><strong>🚗 ${u.nombre}</strong><br><span style="color:#555;font-size:11px;">Hace ${mins<1?'menos de 1':mins} min</span></div>`);
+    gpsLeafletMarkers[id]=marker;
+  });
 }
 
 // ─── Realtime indicator ───────────────────────────────────────────────────────
@@ -355,7 +420,7 @@ function normalizeString(s) { return s ? s.normalize('NFD').replace(/[\u0300-\u0
 function showLoading(v) { document.getElementById('loading-overlay').style.display = v ? 'flex' : 'none'; }
 function updateLastUploadLabel(fecha){
   const lbl=document.getElementById('last-upload-label');
-  if(lbl) lbl.textContent=`Últ. carga: ${fecha}`;
+  if(lbl) lbl.textContent=`Última carga: ${fecha}`;
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -442,6 +507,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   showLoading(true);
   await loadZoneData(selectedZone);
+  await loadGpsMarkers();
 });
 
 // ─── Load zone data ───────────────────────────────────────────────────────────
@@ -525,7 +591,23 @@ function setupEventListeners() {
   document.getElementById('codigo-search')?.addEventListener('keypress', e => { if(e.key==='Enter') searchByCodigo(); });
   document.getElementById('show-tooltips')?.addEventListener('change', function() { localStorage.setItem('showTooltips', this.checked); renderMarkers(); });
   document.getElementById('show-kml-points')?.addEventListener('change', function() { localStorage.setItem('showKmlPoints', this.checked); renderMarkers(); });
+  document.getElementById('save-pin-btn')?.addEventListener('click', saveTecnicoPin);
   document.body.appendChild(Object.assign(document.createElement('audio'), {id:'alert-sound', src:'https://www.soundjay.com/buttons/sounds/beep-07a.mp3'}));
+}
+
+// ─── PIN Management ───────────────────────────────────────────────────────────
+async function saveTecnicoPin(){
+  const tecnico=document.getElementById('pin-tecnico-select').value;
+  const pin=document.getElementById('pin-input').value.trim();
+  const msg=document.getElementById('pin-msg');
+  if(!tecnico){msg.innerHTML='<span class="text-danger">Selecciona un técnico.</span>';return;}
+  if(!/^\d{4}$/.test(pin)){msg.innerHTML='<span class="text-danger">El PIN debe tener exactamente 4 dígitos.</span>';return;}
+  const id=tecnico.replace(/\s+/g,'_').toLowerCase();
+  const{error}=await sb.from('technician_pins').upsert({id,pin,updated_at:new Date().toISOString()});
+  if(error){msg.innerHTML='<span class="text-danger">Error al guardar PIN.</span>';return;}
+  msg.innerHTML=`<span class="text-success">✓ PIN guardado para ${tecnico}</span>`;
+  document.getElementById('pin-input').value='';
+  setTimeout(()=>{msg.innerHTML='';},3000);
 }
 
 // ─── Filters ──────────────────────────────────────────────────────────────────
@@ -555,6 +637,11 @@ function populateFilters() {
   if (imgSel) {
     imgSel.innerHTML = '<option value="">Selecciona técnico</option><option value="sin_tecnico">Sin técnico</option>';
     tecnicos.forEach(t => imgSel.insertAdjacentHTML('beforeend', `<option value="${t}">${t}</option>`));
+  }
+  const pinSel = document.getElementById('pin-tecnico-select');
+  if (pinSel) {
+    pinSel.innerHTML = '<option value="">Selecciona técnico</option>';
+    tecnicos.forEach(t => pinSel.insertAdjacentHTML('beforeend', `<option value="${t}">${t}</option>`));
   }
   renderTechnicianSummary();
 }
