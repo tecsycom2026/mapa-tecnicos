@@ -464,11 +464,11 @@ function updateLastUploadLabel(fecha){
 }
 
 // ─── Sonido para nuevos registros sin técnico ─────────────────────────────────
-let _prevSinTecnicoCount = 0;
+let _prevSinTecnicoCount = -1; // -1 = nunca inicializado
 function checkNuevosSinTecnico(records){
   const sinTecnico = records.filter(r=>!r.Tecnico).length;
-  if(_prevSinTecnicoCount > 0 && sinTecnico > _prevSinTecnicoCount){
-    const nuevos = sinTecnico - _prevSinTecnicoCount;
+  // Sonar si: es primera carga con sin técnico, O si aumentaron los sin técnico
+  if(sinTecnico > 0 && (_prevSinTecnicoCount === -1 || sinTecnico > _prevSinTecnicoCount)){
     playNotificationSound();
     showSinTecnicoAlert(sinTecnico);
   }
@@ -931,12 +931,8 @@ function handleExcelUpload(e){
     localStorage.setItem(`records_${selectedZone}`,JSON.stringify(allRecords));
     await sbSave('records',selectedZone,allRecords);
     flashRealtimeIndicator(`${newRecords.length} registros publicados en tiempo real`);
-    const sinTecnico=allRecords.filter(r=>!r.Tecnico).length;
-    if(sinTecnico>0){
-      playNotificationSound();
-      showSinTecnicoAlert(sinTecnico);
-    }
-    _prevSinTecnicoCount=sinTecnico;
+    _prevSinTecnicoCount=-1; // reset para detectar como primera carga
+    checkNuevosSinTecnico(allRecords);
     populateFilters();renderMarkers();updateStatistics();showLoading(false);e.target.value='';
   };
   reader.readAsArrayBuffer(file);
