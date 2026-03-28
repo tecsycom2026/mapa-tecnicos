@@ -381,8 +381,38 @@ function subscribeGps(){
     Object.keys(gpsMarkers).forEach(id=>{
       if(!data.find(u=>u.id===id)){delete gpsMarkers[id];changed=true;}
     });
-    if(changed){renderGpsMarkers();flashRealtimeIndicator('Ubicación actualizada');}
+    if(changed){renderGpsMarkers();} // Actualización silenciosa en segundo plano
   }, 5000);
+}
+
+// ─── Liberación automática de ubicaciones GPS a las 23:00 ────────────────────
+async function releaseGpsLocations(){
+  try {
+    const { error } = await sb.from('user_locations').delete().neq('id', '__never__');
+    if(error){ console.warn('releaseGpsLocations error:', error); return; }
+    gpsMarkers = {};
+    renderGpsMarkers();
+    console.log('[AutoRelease] Ubicaciones GPS liberadas a las 23:00');
+  } catch(e){ console.warn('releaseGpsLocations exception:', e); }
+}
+
+function scheduleNightRelease(){
+  function msUntil23(){
+    const now = new Date();
+    const target = new Date();
+    target.setHours(23, 0, 0, 0);
+    if(now >= target) target.setDate(target.getDate() + 1);
+    return target - now;
+  }
+  function armNext(){
+    const delay = msUntil23();
+    console.log(`[AutoRelease] Próxima liberación en ${Math.round(delay/60000)} min`);
+    setTimeout(async () => {
+      await releaseGpsLocations();
+      armNext();
+    }, delay);
+  }
+  armNext();
 }
 
 // ─── GPS Markers (ubicaciones en tiempo real de técnicos) ─────────────────────
@@ -638,6 +668,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadZoneData(selectedZone);
   await loadGpsMarkers();
   subscribeGps();
+  scheduleNightRelease(); // Liberación automática de ubicaciones a las 23:00
 });
 
 // ─── Load zone data ───────────────────────────────────────────────────────────
