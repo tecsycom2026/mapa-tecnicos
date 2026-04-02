@@ -1,0 +1,2392 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tecsycom</title>
+  <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/1865/1865269.png" type="image/x-icon">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style id="app-style">
+    /* ═══════════════════════════════════════════════
+       DESIGN TOKENS — paleta profesional clara
+    ═══════════════════════════════════════════════ */
+    :root {
+      --brand-start: #1a73e8;
+      --brand-end:   #0d47a1;
+      --brand:       #1a73e8;
+      --brand-light: #e8f0fe;
+      --brand-mid:   #4a90d9;
+      --surface:     #ffffff;
+      --surface-2:   #f7f9fc;
+      --surface-3:   #eef2f7;
+      --border:      #dde3ed;
+      --border-soft: #eaeff6;
+      --text-primary:#1c2b4a;
+      --text-secondary:#5f7089;
+      --text-muted:  #98a8bc;
+      --success:     #27ae60;
+      --danger:      #e53935;
+      --warning-bg:  #fffde7;
+      --warning-bdr: #f9a825;
+      --radius-sm:   6px;
+      --radius-md:   10px;
+      --radius-lg:   14px;
+      --shadow-sm:   0 1px 4px rgba(26,73,160,.08);
+      --shadow-md:   0 4px 16px rgba(26,73,160,.12);
+      --shadow-lg:   0 8px 32px rgba(26,73,160,.16);
+      --sidebar-w:   300px;
+      --transition:  .25s cubic-bezier(.4,0,.2,1);
+    }
+
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing:border-box; }
+    html, body { height:100%; margin:0; padding:0; overflow:hidden; font-family:'Segoe UI',system-ui,-apple-system,sans-serif; color:var(--text-primary); }
+
+    /* ── Layout ── */
+    #app-container { display:flex; height:100vh; width:100%; background:var(--surface-2); }
+
+    /* ══════════════════════════════════════════
+       SIDEBAR
+    ══════════════════════════════════════════ */
+    #sidebar {
+      width:var(--sidebar-w);
+      height:100%;
+      background:var(--surface);
+      overflow-y:auto;
+      overflow-x:hidden;
+      transition:transform var(--transition);
+      z-index:1000;
+      box-shadow:var(--shadow-md);
+      border-right:1px solid var(--border);
+      display:flex;
+      flex-direction:column;
+    }
+    #sidebar.collapsed { transform:translateX(-280px); }
+
+    /* Scrollbar elegante */
+    #sidebar::-webkit-scrollbar { width:4px; }
+    #sidebar::-webkit-scrollbar-track { background:transparent; }
+    #sidebar::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+    #sidebar::-webkit-scrollbar-thumb:hover { background:var(--brand-mid); }
+
+    /* Header del sidebar con gradiente */
+    .sidebar-header {
+      background:linear-gradient(135deg, var(--brand-start) 0%, var(--brand-end) 100%);
+      padding:18px 16px 14px;
+      color:#fff;
+      flex-shrink:0;
+      position:relative;
+      overflow:hidden;
+    }
+    .sidebar-header::after {
+      content:'';
+      position:absolute;
+      top:-30px; right:-30px;
+      width:100px; height:100px;
+      border-radius:50%;
+      background:rgba(255,255,255,.07);
+    }
+    .sidebar-header h4 {
+      margin:0 0 4px;
+      font-size:16px;
+      font-weight:700;
+      letter-spacing:.3px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .sidebar-header h4 i { font-size:15px; opacity:.9; }
+    .sidebar-header .subtitle {
+      font-size:11px;
+      opacity:.75;
+      display:flex;
+      align-items:center;
+      gap:6px;
+      margin-top:2px;
+    }
+    #auth-status .badge {
+      font-size:10px;
+      padding:3px 8px;
+      border-radius:20px;
+      background:rgba(255,255,255,.2) !important;
+      color:#fff !important;
+      border:1px solid rgba(255,255,255,.3);
+      backdrop-filter:blur(4px);
+    }
+    #no-tech-summary {
+      margin-top:8px;
+      font-size:11px;
+      opacity:.85;
+      color:#fff !important;
+    }
+    #no-tech-summary .badge {
+      background:rgba(255,255,255,.25) !important;
+      color:#fff !important;
+      border-radius:10px;
+      padding:2px 7px;
+    }
+    #sin-tech-badge {
+      background:#ff5252 !important;
+      border:1px solid rgba(255,255,255,.4);
+      border-radius:10px;
+      font-size:10px !important;
+      padding:2px 6px;
+      animation:pulse-badge 2s infinite;
+    }
+    @keyframes pulse-badge {
+      0%,100%{ box-shadow:0 0 0 0 rgba(255,82,82,.5); }
+      50%    { box-shadow:0 0 0 5px rgba(255,82,82,0); }
+    }
+
+    /* Sidebar body */
+    .sidebar-body { padding:12px; flex:1; }
+
+    /* ── Coordenadas agregadas ── */
+    #manual-coords-list { margin-bottom:12px; }
+    #manual-coords-list h6 {
+      font-size:11px;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.8px;
+      color:var(--text-secondary);
+      margin-bottom:8px;
+      display:flex;
+      align-items:center;
+      gap:6px;
+    }
+    #manual-coords-list h6::before {
+      content:'';
+      display:inline-block;
+      width:3px; height:12px;
+      background:var(--brand);
+      border-radius:2px;
+    }
+    #coord-list { display:none; }
+
+    /* ══════════════════════════════════════════
+       ACCORDION
+    ══════════════════════════════════════════ */
+    .accordion-item {
+      border:1px solid var(--border-soft) !important;
+      border-radius:var(--radius-md) !important;
+      margin-bottom:6px;
+      overflow:hidden;
+      box-shadow:var(--shadow-sm);
+    }
+    .accordion-button {
+      font-size:13px;
+      font-weight:600;
+      color:var(--text-primary);
+      background:var(--surface) !important;
+      padding:11px 14px;
+      border-radius:var(--radius-md) !important;
+      transition:background var(--transition), color var(--transition);
+    }
+    .accordion-button::after { filter:opacity(.5); }
+    .accordion-button:not(.collapsed) {
+      background:var(--brand-light) !important;
+      color:var(--brand) !important;
+      box-shadow:none !important;
+    }
+    .accordion-button:not(.collapsed)::after { filter:none; }
+    .accordion-button:focus { box-shadow:none !important; }
+    .accordion-body { padding:12px; background:var(--surface-2); }
+
+    /* ── Sección Asignar imagen (antes amarillo) ── */
+    #collapseThree .accordion-body {
+      background:linear-gradient(135deg,#fffbf0,#fff8e8) !important;
+      border-top:2px solid #f9a825 !important;
+    }
+    #collapseThree .form-select,
+    #collapseThree .form-control-sm {
+      border-color:#f9a825;
+      box-shadow:0 0 0 3px rgba(249,168,37,.12);
+    }
+
+    /* ══════════════════════════════════════════
+       FILTER SECTIONS
+    ══════════════════════════════════════════ */
+    .filter-section {
+      padding:8px 0;
+      margin-bottom:6px;
+      border-bottom:1px solid var(--border-soft);
+    }
+    .filter-section:last-child { border-bottom:none; }
+    .filter-section .form-label {
+      font-size:11px;
+      font-weight:600;
+      text-transform:uppercase;
+      letter-spacing:.6px;
+      color:var(--text-secondary);
+      margin-bottom:5px;
+    }
+
+    /* ── Selects y inputs rediseñados ── */
+    .form-select, .form-control {
+      border:1px solid var(--border);
+      border-radius:var(--radius-sm);
+      font-size:12.5px;
+      color:var(--text-primary);
+      background-color:var(--surface);
+      transition:border-color var(--transition), box-shadow var(--transition);
+      padding:6px 10px;
+    }
+    .form-select:focus, .form-control:focus {
+      border-color:var(--brand);
+      box-shadow:0 0 0 3px rgba(26,115,232,.15);
+      outline:none;
+    }
+    .form-select-sm, .form-control-sm { font-size:12px; padding:4px 8px; }
+
+    /* ── Switches ── */
+    .form-check-input:checked { background-color:var(--brand); border-color:var(--brand); }
+    .form-check-label { font-size:12.5px; color:var(--text-primary); }
+
+    /* ── Botones ── */
+    .btn {
+      border-radius:var(--radius-sm);
+      font-size:12.5px;
+      font-weight:500;
+      transition:all var(--transition);
+    }
+    .btn-primary {
+      background:linear-gradient(135deg,var(--brand-start),var(--brand-end));
+      border:none;
+      box-shadow:0 2px 8px rgba(26,115,232,.3);
+    }
+    .btn-primary:hover {
+      background:linear-gradient(135deg,#1565c0,#0a2e6e);
+      box-shadow:0 4px 14px rgba(26,115,232,.4);
+      transform:translateY(-1px);
+    }
+    .btn-outline-primary {
+      border-color:var(--brand);
+      color:var(--brand);
+    }
+    .btn-outline-primary:hover {
+      background:var(--brand-light);
+      border-color:var(--brand);
+      color:var(--brand);
+    }
+    .btn-outline-secondary {
+      border-color:var(--border);
+      color:var(--text-secondary);
+      font-size:12px;
+    }
+    .btn-outline-secondary:hover { background:var(--surface-3); color:var(--text-primary); }
+    #clear-filters { width:100%; margin-top:6px; }
+    #clear-filters.has-filters {
+      background:linear-gradient(135deg,#e53935,#b71c1c);
+      color:#fff;
+      border:none;
+      box-shadow:0 2px 8px rgba(229,57,53,.35);
+    }
+
+    /* ── Buscar por código ── */
+    .search-card {
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:var(--radius-md);
+      padding:12px;
+      margin:10px 0;
+      box-shadow:var(--shadow-sm);
+    }
+    .search-card .form-label {
+      font-size:11px;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.6px;
+      color:var(--brand);
+      margin-bottom:6px;
+    }
+
+    /* ── Agregar coordenada ── */
+    #coord-entry {
+      background:var(--surface);
+      border:1px solid var(--border) !important;
+      border-radius:var(--radius-md) !important;
+      padding:12px !important;
+      box-shadow:var(--shadow-sm);
+    }
+    #coord-entry h6 {
+      font-size:11px;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.6px;
+      color:var(--brand);
+      margin-bottom:10px;
+      display:flex;
+      align-items:center;
+      gap:6px;
+    }
+    #coord-entry h6::before {
+      content:'📍';
+      font-size:13px;
+    }
+    #save-coord {
+      background:linear-gradient(135deg,var(--brand-start),var(--brand-end));
+      border:none;
+      font-weight:600;
+      letter-spacing:.3px;
+      box-shadow:0 2px 8px rgba(26,115,232,.3);
+    }
+
+    /* ── Zonal selector ── */
+    .zonal-section {
+      background:var(--surface-3);
+      border:1px solid var(--border-soft);
+      border-radius:var(--radius-md);
+      padding:10px 12px;
+      margin:8px 0;
+    }
+    .zonal-section .form-label {
+      font-size:11px;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.6px;
+      color:var(--text-secondary);
+      margin-bottom:6px;
+    }
+    .form-check-inline .form-check-input:checked + .form-check-label {
+      color:var(--brand);
+      font-weight:600;
+    }
+
+    /* ── Upload buttons ── */
+    .upload-btn-wrap {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .upload-btn-wrap .btn {
+      border-style:dashed;
+      font-size:12px;
+      padding:5px 12px;
+    }
+    .upload-btn-wrap .btn:hover {
+      border-style:solid;
+      background:var(--brand-light);
+    }
+
+    /* ── Resumen por técnico ── */
+    #tech-summary-panel {
+      background:var(--surface);
+      border:1px solid var(--border) !important;
+      border-radius:var(--radius-md) !important;
+      padding:12px !important;
+      box-shadow:var(--shadow-sm);
+      margin-top:8px !important;
+    }
+    #tech-summary-panel h6 {
+      font-size:11px;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.6px;
+      color:var(--text-secondary);
+      margin-bottom:10px;
+      display:flex;
+      align-items:center;
+      gap:6px;
+    }
+    #tech-summary-panel h6::before {
+      content:'';
+      display:inline-block;
+      width:3px; height:12px;
+      background:var(--brand);
+      border-radius:2px;
+    }
+    #tech-summary-content table { margin:0; }
+    #tech-summary-content th {
+      font-size:10px;
+      text-transform:uppercase;
+      letter-spacing:.5px;
+      color:var(--text-muted);
+      padding:4px 6px;
+      border-bottom:2px solid var(--border-soft);
+    }
+    #tech-summary-content td { font-size:12px; padding:5px 6px; vertical-align:middle; }
+    #tech-summary-content tr { cursor:pointer; transition:background var(--transition); border-radius:var(--radius-sm); }
+    #tech-summary-content tr:hover td { background:var(--brand-light); }
+    #tech-summary-content tr.active-filter td { background:#dbeafe; font-weight:600; color:var(--brand); }
+    .bg-yellow, .badge.bg-yellow {
+      background:linear-gradient(135deg,#f59e0b,#d97706) !important;
+      color:#fff !important;
+      border-radius:20px;
+      font-size:10px;
+      padding:2px 8px;
+    }
+
+    /* ── Leyenda estilos mapa ── */
+    #sidebar-style-legend { margin:0; padding:0; }
+    #sidebar-style-legend li {
+      cursor:pointer;
+      padding:6px 10px;
+      border-radius:var(--radius-sm);
+      font-size:12px;
+      color:var(--text-secondary);
+      transition:all var(--transition);
+      margin-bottom:2px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    #sidebar-style-legend li::before { content:'🗺'; font-size:11px; }
+    #sidebar-style-legend li:hover { background:var(--surface-3); color:var(--text-primary); }
+    #sidebar-style-legend li.active {
+      background:linear-gradient(135deg,var(--brand-start),var(--brand-end));
+      color:#fff;
+      box-shadow:var(--shadow-sm);
+    }
+    #sidebar-style-legend li.active::before { filter:brightness(10); }
+
+    /* ══════════════════════════════════════════
+       TOGGLE SIDEBAR BUTTON
+    ══════════════════════════════════════════ */
+    #toggle-sidebar {
+      position:absolute;
+      left:var(--sidebar-w);
+      top:16px;
+      z-index:1001;
+      transition:left var(--transition), box-shadow var(--transition);
+      background:var(--surface);
+      border-radius:0 var(--radius-md) var(--radius-md) 0;
+      box-shadow:var(--shadow-md);
+      border:1px solid var(--border);
+      border-left:none;
+      width:28px;
+      height:38px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:var(--text-secondary);
+      padding:0;
+    }
+    #toggle-sidebar:hover {
+      background:var(--brand);
+      color:#fff;
+      box-shadow:var(--shadow-md);
+    }
+    #toggle-sidebar.collapsed { left:20px; border-radius:var(--radius-md); border-left:1px solid var(--border); }
+
+    /* ══════════════════════════════════════════
+       MAP CONTAINER
+    ══════════════════════════════════════════ */
+    #map-container { flex-grow:1; position:relative; height:100%; }
+    #map { height:100%; width:100%; }
+
+    /* ══════════════════════════════════════════
+       DETAIL PANEL
+    ══════════════════════════════════════════ */
+    #detail-panel {
+      position:absolute;
+      right:-420px;
+      top:0;
+      width:400px;
+      height:100%;
+      background:var(--surface);
+      z-index:1000;
+      box-shadow:var(--shadow-lg);
+      overflow-y:auto;
+      transition:right var(--transition);
+      padding:0;
+      border-left:1px solid var(--border);
+      display:flex;
+      flex-direction:column;
+    }
+    #detail-panel.open { right:0; }
+    #detail-panel::-webkit-scrollbar { width:4px; }
+    #detail-panel::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+
+    /* Header del panel de detalle */
+    #record-details { padding:20px 18px; flex:1; }
+
+    .close-panel {
+      position:absolute;
+      top:14px;
+      right:14px;
+      cursor:pointer;
+      width:28px; height:28px;
+      background:var(--surface-3);
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:var(--text-secondary);
+      font-size:13px;
+      transition:all var(--transition);
+      z-index:10;
+    }
+    .close-panel:hover { background:var(--danger); color:#fff; }
+
+    #delete-record {
+      margin:0 18px 18px;
+      border-radius:var(--radius-md);
+      font-size:13px;
+      font-weight:600;
+      background:linear-gradient(135deg,#e53935,#b71c1c);
+      border:none;
+      box-shadow:0 2px 8px rgba(229,57,53,.3);
+      transition:all var(--transition);
+    }
+    #delete-record:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(229,57,53,.45); }
+
+    /* Badges en el panel de detalle */
+    .badge { border-radius:20px; font-weight:500; font-size:11px; }
+    .badge.bg-success { background:linear-gradient(135deg,#27ae60,#1e8449) !important; }
+    .badge.bg-danger  { background:linear-gradient(135deg,#e53935,#b71c1c) !important; }
+    .badge.bg-primary { background:linear-gradient(135deg,var(--brand-start),var(--brand-end)) !important; }
+    .badge.bg-info    { background:linear-gradient(135deg,#00acc1,#00838f) !important; color:#fff !important; }
+    .badge.bg-secondary { background:linear-gradient(135deg,#78909c,#546e7a) !important; }
+
+    /* textarea observaciones */
+    #record-details textarea {
+      font-size:12.5px;
+      border:1px solid var(--border);
+      border-radius:var(--radius-sm);
+      resize:vertical;
+      min-height:70px;
+    }
+
+    /* ══════════════════════════════════════════
+       LOADING OVERLAY
+    ══════════════════════════════════════════ */
+    .loading-overlay {
+      position:absolute;
+      top:0; left:0;
+      width:100%; height:100%;
+      background:rgba(247,249,252,.85);
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      z-index:2000;
+      backdrop-filter:blur(3px);
+    }
+    .spinner-border { color:var(--brand) !important; width:2rem; height:2rem; }
+
+    /* ══════════════════════════════════════════
+       MAP MARKERS
+    ══════════════════════════════════════════ */
+    .custom-pin {
+      width:30px; height:30px;
+      border-radius:50%;
+      background:var(--color,var(--brand));
+      color:#fff;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:1.1em;
+      font-weight:700;
+      box-shadow:0 2px 8px rgba(0,0,0,.2), 0 0 0 2px rgba(255,255,255,.6);
+    }
+    .custom-marker-container { display:flex; align-items:center; flex-direction:row; }
+    .estado-label {
+      background:rgba(255,255,255,.92);
+      border:none;
+      border-radius:20px;
+      padding:2px 8px;
+      font-size:10.5px;
+      font-weight:500;
+      white-space:nowrap;
+      margin-left:6px;
+      text-align:center;
+      pointer-events:none;
+      box-shadow:0 1px 4px rgba(0,0,0,.12);
+      color:var(--text-primary);
+    }
+    .estado-en-camino   { color:#000 !important; background:#ffe600 !important; }
+    .estado-pendiente   { font-weight:700 !important; color:#000 !important; background:#ffe600 !important; box-shadow:0 1px 4px rgba(0,0,0,.18) !important; }
+    .countdown-overlay  { position:absolute; top:0; left:0; width:100%; background:rgba(255,255,0,.7) !important; color:#000 !important; font-weight:bold; text-align:center; z-index:10; pointer-events:none; }
+    .countdown-expired .custom-pin { background:#e53935 !important; }
+
+    @keyframes glow {
+      0%  { box-shadow:0 0 6px rgba(229,57,53,.8), 0 0 0 2px rgba(255,255,255,.6); }
+      50% { box-shadow:0 0 20px rgba(229,57,53,1), 0 0 0 2px rgba(255,255,255,.6); }
+      100%{ box-shadow:0 0 6px rgba(229,57,53,.8), 0 0 0 2px rgba(255,255,255,.6); }
+    }
+    .glow { animation:glow 1s ease-in-out alternate 3; }
+    @keyframes arrowBounce { 0%{transform:translateX(-50%) translateY(0)} 100%{transform:translateX(-50%) translateY(-5px)} }
+
+    /* ══════════════════════════════════════════
+       REALTIME INDICATOR
+    ══════════════════════════════════════════ */
+    #realtime-indicator {
+      position:absolute;
+      top:14px;
+      left:50%;
+      transform:translateX(-50%);
+      z-index:1500;
+      background:linear-gradient(135deg,rgba(39,174,96,.92),rgba(30,132,73,.92));
+      color:#fff;
+      font-size:12px;
+      font-weight:500;
+      padding:6px 18px;
+      border-radius:20px;
+      display:none;
+      white-space:nowrap;
+      pointer-events:none;
+      transition:opacity .5s;
+      box-shadow:0 2px 12px rgba(39,174,96,.35);
+      backdrop-filter:blur(6px);
+      letter-spacing:.2px;
+    }
+    #realtime-indicator.show { display:block; }
+    #realtime-indicator.fade-out { opacity:0; }
+
+    /* ══════════════════════════════════════════
+       GLOBAL TIMER OVERLAY
+    ══════════════════════════════════════════ */
+    #global-timer-overlay {
+      position:absolute;
+      top:14px;
+      right:50%;
+      transform:translateX(50%);
+      background:linear-gradient(135deg,#f59e0b,#d97706) !important;
+      color:#fff !important;
+      font-weight:600;
+      font-size:12px;
+      padding:6px 14px;
+      border-radius:20px;
+      z-index:1500;
+      box-shadow:0 2px 10px rgba(245,158,11,.4);
+    }
+
+    /* ══════════════════════════════════════════
+       MAP STYLE LEGEND (dropdown)
+    ══════════════════════════════════════════ */
+    #style-legend { position:absolute; bottom:24px; right:14px; z-index:1001; }
+    #style-legend .btn {
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:var(--radius-md);
+      box-shadow:var(--shadow-md);
+      font-size:12px;
+      color:var(--text-primary);
+      padding:6px 14px;
+    }
+    #style-legend .btn:hover { background:var(--surface-3); }
+    #style-legend .dropdown-menu {
+      min-width:180px;
+      border:1px solid var(--border);
+      border-radius:var(--radius-md);
+      box-shadow:var(--shadow-lg);
+      padding:6px;
+    }
+    #style-legend .dropdown-item {
+      border-radius:var(--radius-sm);
+      font-size:12.5px;
+      padding:6px 10px;
+      color:var(--text-primary);
+    }
+    #style-legend .dropdown-item:hover { background:var(--brand-light); color:var(--brand); }
+
+    /* ══════════════════════════════════════════
+       CONTEXT MENU
+    ══════════════════════════════════════════ */
+    .context-menu {
+      position:absolute;
+      display:none;
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:var(--radius-md);
+      box-shadow:var(--shadow-lg);
+      padding:6px;
+      z-index:2000;
+      min-width:220px;
+      max-height:320px;
+      overflow-y:auto;
+    }
+    .context-menu::-webkit-scrollbar { width:4px; }
+    .context-menu::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+    .context-menu-header {
+      font-weight:700;
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.6px;
+      padding:6px 10px 8px;
+      color:var(--text-secondary);
+      border-bottom:1px solid var(--border-soft);
+      margin-bottom:4px;
+    }
+    .context-menu-item {
+      padding:7px 10px;
+      cursor:pointer;
+      font-size:13px;
+      border-radius:var(--radius-sm);
+      color:var(--text-primary);
+      transition:background var(--transition);
+      white-space:nowrap;
+    }
+    .context-menu-item:hover { background:var(--brand-light); color:var(--brand); }
+    .context-menu-item.bg-light.fw-bold { background:var(--brand-light) !important; color:var(--brand) !important; }
+    .context-menu-separator { border-top:1px solid var(--border-soft); margin:4px 0; }
+    .context-menu-input {
+      margin:6px 8px;
+      width:calc(100% - 16px);
+      border-radius:var(--radius-sm);
+      border:1px solid var(--border);
+      font-size:12.5px;
+      padding:5px 8px;
+    }
+    .context-menu-input:focus { border-color:var(--brand); outline:none; box-shadow:0 0 0 3px rgba(26,115,232,.15); }
+    .context-menu-add-btn { margin:0 8px 6px; width:calc(100% - 16px); }
+
+    /* ══════════════════════════════════════════
+       SMART TOAST
+    ══════════════════════════════════════════ */
+    #smart-toast {
+      position:absolute;
+      bottom:34px;
+      left:50%;
+      transform:translateX(-50%);
+      z-index:3000;
+      background:#1c2b4a;
+      color:#fff;
+      padding:10px 22px;
+      border-radius:var(--radius-md);
+      font-size:13px;
+      font-weight:500;
+      display:none;
+      white-space:nowrap;
+      box-shadow:var(--shadow-lg);
+      transition:opacity .4s;
+      backdrop-filter:blur(8px);
+      letter-spacing:.2px;
+    }
+    #smart-toast.show { display:block; }
+    #smart-toast.fade-out { opacity:0; }
+
+    /* ══════════════════════════════════════════
+       AUTOCOMPLETE
+    ══════════════════════════════════════════ */
+    #codigo-autocomplete-list {
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:var(--radius-md);
+      box-shadow:var(--shadow-lg);
+      max-height:200px;
+      overflow-y:auto;
+      margin-top:2px;
+    }
+    .autocomplete-item {
+      padding:7px 12px;
+      cursor:pointer;
+      font-size:12.5px;
+      border-bottom:1px solid var(--border-soft);
+      transition:background var(--transition);
+      color:var(--text-primary);
+    }
+    .autocomplete-item:last-child { border-bottom:none; }
+    .autocomplete-item:hover { background:var(--brand-light); }
+    .autocomplete-item strong { color:var(--brand); }
+
+    /* ══════════════════════════════════════════
+       TECH SUGGESTED
+    ══════════════════════════════════════════ */
+    .tech-suggested-highlight {
+      font-weight:600;
+      background:linear-gradient(135deg,#fff3cd,#ffe8a0);
+      border-radius:var(--radius-sm);
+      padding:2px 6px;
+      color:#856404;
+    }
+
+    /* ══════════════════════════════════════════
+       PENDIENTE FORMATS
+    ══════════════════════════════════════════ */
+    .highlight-pendiente-8-12,
+    .highlight-pendiente-12-16,
+    .highlight-pendiente-16-20 { background:#ffe600 !important; color:#000 !important; }
+    .bg-warning, .badge.bg-warning { background:linear-gradient(135deg,#f59e0b,#d97706) !important; color:#fff !important; }
+    .alert-danger { background:#fff3cd !important; color:#856404 !important; border-color:#f9a825 !important; }
+
+    /* ══════════════════════════════════════════
+       MISC UTILITIES
+    ══════════════════════════════════════════ */
+    .visually-hidden { position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; border:0!important; }
+    #kml-upload { position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer; }
+    .assign-category-image-btn { margin-left:.5rem; padding:.25rem .5rem; font-size:.85em; }
+    .bg-yellow { background:linear-gradient(135deg,#f59e0b,#d97706) !important; color:#fff !important; }
+    #filter-count-badge { background:var(--brand) !important; border-radius:20px; font-size:10px !important; }
+    #filter-active-badge { background:#e53935 !important; border-radius:50%; width:8px; height:8px; padding:0 !important; }
+
+    /* ══════════════════════════════════════════
+       RESPONSIVE
+    ══════════════════════════════════════════ */
+    @media(max-width:768px){
+      #sidebar { width:100%; transform:translateX(-100%); }
+      #toggle-sidebar.collapsed { left:10px; }
+      #detail-panel { width:100%; right:-100%; }
+      #detail-panel.open { right:0; }
+    }
+  </style>
+</head>
+<body>
+<div id="app-container">
+  <div id="sidebar">
+    <!-- Header con gradiente -->
+    <div class="sidebar-header">
+      <h4>
+        <i class="fas fa-map-marked-alt"></i>
+        Tecsycom
+        <span id="sin-tech-badge" class="badge" style="display:none;" title="Registros sin técnico asignado">0</span>
+      </h4>
+      <div class="subtitle">
+        <i class="fas fa-circle" style="color:#4eff91;font-size:8px;"></i>
+        <span id="last-upload-label">Ult. carga: —</span>
+      </div>
+      <div id="auth-status" class="mt-2">
+        <span class="badge"><i class="fas fa-satellite-dish me-1"></i> Tiempo real activo</span>
+      </div>
+      <div id="no-tech-summary"></div>
+    </div>
+
+    <!-- Cuerpo del sidebar -->
+    <div class="sidebar-body">
+      <div id="manual-coords-list" class="mb-3">
+        <div class="mb-2">
+          <h6>Coordenadas Agregadas</h6>
+          <div id="category-checkboxes" class="mt-2"></div>
+        </div>
+        <ul class="list-group list-group-sm" id="coord-list"></ul>
+      </div>
+
+      <div class="accordion" id="accordionSidebar">
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne">Filtros <span id="filter-count-badge" class="badge bg-primary ms-2" style="display:none;font-size:10px;"></span><span id="filter-active-badge" class="badge bg-danger ms-1" style="display:none;font-size:10px;">●</span></button>
+          </h2>
+          <div id="collapseOne" class="accordion-collapse collapse show">
+            <div class="accordion-body">
+              <div class="filter-section">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="show-tooltips" checked>
+                  <label class="form-check-label" for="show-tooltips">Mostrar Estado</label>
+                </div>
+              </div>
+              <div class="filter-section">
+                <label class="form-label">Filtrar por Tramo:</label>
+                <select id="tramo-filter" class="form-select mb-2"><option value="">Todos los tramos</option></select>
+              </div>
+              <div class="filter-section">
+                <label class="form-label">Filtrar por Estado:</label>
+                <select id="estado-filter" class="form-select mb-2"><option value="">Todos los estados</option></select>
+              </div>
+              <div class="filter-section">
+                <label class="form-label">Filtrar por Distrito:</label>
+                <select id="distrito-filter" class="form-select mb-2"><option value="">Todos los distritos</option></select>
+              </div>
+              <div class="filter-section">
+                <label class="form-label">Filtrar por Técnico:</label>
+                <select id="tecnico-filter" class="form-select mb-2"><option value="">Todos los técnicos</option></select>
+              </div>
+              <div class="filter-section">
+                <label class="form-label">Filtrar por Negocio:</label>
+                <select id="negocio-filter" class="form-select mb-2"><option value="">Todos los negocios</option></select>
+              </div>
+              <div id="pending-format-section" class="filter-section">
+                <div class="mb-2">Formato Pendientes:</div>
+                <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="format-8-12"><label class="form-check-label" for="format-8-12">Pendiente 8/12</label></div>
+                <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="format-12-16"><label class="form-check-label" for="format-12-16">Pendiente 12/16</label></div>
+                <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="format-16-20"><label class="form-check-label" for="format-16-20">Pendiente 16/20</label></div>
+              </div>
+              <button id="clear-filters" class="btn btn-outline-secondary btn-sm">Limpiar filtros</button>
+
+              <div class="search-card mt-2">
+                <label class="form-label"><i class="fas fa-search me-1"></i>Buscar por Código</label>
+                <div class="input-group input-group-sm">
+                  <input type="text" id="codigo-search" class="form-control" placeholder="Ingrese código..." autocomplete="off">
+                  <button id="search-codigo-btn" class="btn btn-primary">Buscar</button>
+                </div>
+                <div id="codigo-autocomplete" style="position:relative;z-index:3000;"></div>
+                <div id="codigo-search-msg" class="text-danger small mt-1"></div>
+              </div>
+
+              <div id="coord-entry" class="mb-4 p-3 border rounded bg-light">
+                <h6>Agregar Coordenada</h6>
+                <div class="mb-2"><label class="form-label">Ubicación (lat,lng)</label><input type="text" id="coord-input" class="form-control form-control-sm" placeholder="-12.04, -77.03"></div>
+                <div class="mb-2"><label class="form-label">Categoría</label>
+                  <select id="coord-category" class="form-select form-select-sm">
+                    <option value="">Seleccione...</option>
+                    <option value="Zona sin Cobertura">Zona sin Cobertura</option>
+                    <option value="Sin FFTT">Sin FFTT</option>
+                    <option value="Zona Peligrosa">Zona Peligrosa</option>
+                    <option value="Dirección de Técnicos">Dirección de Técnicos</option>
+                  </select>
+                </div>
+                <div class="mb-2"><label class="form-label">Imagen (jpg/png)</label><input type="file" id="coord-image" accept=".jpg,.png" class="form-control form-control-sm"></div>
+                <div class="mb-2"><label class="form-label">Nota (opcional)</label><input type="text" id="coord-note" class="form-control form-control-sm"></div>
+                <button id="save-coord" class="btn btn-primary btn-sm w-100">Guardar Coordenada</button>
+              </div>
+
+              <div class="zonal-section">
+                <label class="form-label"><i class="fas fa-globe-americas me-1"></i>Zonal:</label>
+                <div>
+                  <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="zoneSelector" id="zone-lima" value="LIMA" checked><label class="form-check-label" for="zone-lima">LIMA</label></div>
+                  <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="zoneSelector" id="zone-provincia" value="PROVINCIA"><label class="form-check-label" for="zone-provincia">PROVINCIA</label></div>
+                </div>
+              </div>
+
+              <div class="filter-section">
+                <label class="form-label"><i class="fas fa-file-excel me-1"></i>Cargar archivo .xlsx:</label>
+                <div class="upload-btn-wrap">
+                  <input type="file" id="excel-upload" accept=".xlsx" class="visually-hidden" />
+                  <label for="excel-upload" class="btn btn-outline-primary btn-sm"><i class="fas fa-upload me-1"></i>Subir Archivo Maps</label>
+                </div>
+              </div>
+
+              <div class="filter-section mt-2">
+                <label class="form-label"><i class="fas fa-map me-1"></i>Cargar archivo KML:</label>
+                <div class="upload-btn-wrap">
+                  <label class="btn btn-outline-primary btn-sm position-relative overflow-hidden">
+                    <i class="fas fa-upload me-1"></i>Subir KML
+                    <input type="file" id="kml-upload" accept=".kml" style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer;" />
+                  </label>
+                </div>
+                <div id="kml-upload-msg" class="small mt-1"></div>
+                <div class="form-check mt-2"><input class="form-check-input" type="checkbox" id="show-kml-points"><label class="form-check-label" for="show-kml-points">Mostrar Técnicos KML</label></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo">Estadísticas</button>
+          </h2>
+          <div id="collapseTwo" class="accordion-collapse collapse show">
+            <div class="accordion-body">
+              <div class="mb-3"><h6>Leyenda de Estilos de Mapa:</h6><ul id="sidebar-style-legend" class="list-unstyled"></ul></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree">Asignar Imagen a Técnico</button>
+          </h2>
+          <div id="collapseThree" class="accordion-collapse collapse show">
+            <div class="accordion-body">
+              <div class="mb-2"><label class="form-label">Técnico:</label><select id="image-tecnico-select" class="form-select"><option value="">Selecciona técnico</option></select></div>
+              <div><label class="form-label">Subir imagen (JPG/PNG):</label>
+                <div class="input-group"><input type="file" id="tech-image-upload" accept=".png,.jpg,.jpeg" class="visually-hidden" /><label for="tech-image-upload" class="btn btn-outline-primary btn-sm">Subir</label></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="tech-summary-panel" class="mb-4 p-3 border rounded bg-light mt-3">
+          <h6>Resumen por Técnico</h6>
+          <div id="tech-summary-content" class="small"><div class="text-center text-muted">Cargando...</div></div>
+        </div>
+
+        <!-- Panel gestión de PINs -->
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePins">🔐 Gestión de PINs</button>
+          </h2>
+          <div id="collapsePins" class="accordion-collapse collapse">
+            <div class="accordion-body">
+              <p class="small text-muted mb-2">Asigna un PIN inicial a cada técnico. El técnico podrá cambiarlo desde su visor.</p>
+              <div class="mb-2">
+                <label class="form-label small">Técnico:</label>
+                <select id="pin-tecnico-select" class="form-select form-select-sm">
+                  <option value="">Selecciona técnico</option>
+                </select>
+              </div>
+              <div class="mb-2">
+                <label class="form-label small">PIN (4 dígitos):</label>
+                <input type="number" id="pin-input" class="form-control form-control-sm" placeholder="Ej: 1234" maxlength="4" min="1000" max="9999">
+              </div>
+              <button id="save-pin-btn" class="btn btn-primary btn-sm w-100">Guardar PIN</button>
+              <div id="pin-msg" class="small mt-2"></div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /.accordion -->
+    </div><!-- /.sidebar-body -->
+  </div><!-- /#sidebar -->
+
+  <button id="toggle-sidebar" class="btn btn-sm btn-light" title="Mostrar/Ocultar panel"><i class="fas fa-bars"></i></button>
+
+  <div id="map-container">
+    <div id="map"></div>
+    <div id="realtime-indicator"><i class="fas fa-sync-alt fa-spin me-1"></i> Mapa actualizado en tiempo real</div>
+    <div id="smart-toast"></div>
+    <div id="detail-panel">
+      <span class="close-panel" id="close-detail"><i class="fas fa-times"></i></span>
+      <div id="record-details"></div>
+      <button id="delete-record" class="btn btn-danger mt-3">Eliminar registro</button>
+    </div>
+    <div class="loading-overlay" id="loading-overlay">
+      <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div>
+    </div>
+    <div class="dropdown" id="style-legend">
+      <button class="btn btn-light dropdown-toggle" type="button" data-bs-toggle="dropdown"><span id="current-style-label">CartoDB Positron</span></button>
+      <ul class="dropdown-menu"></ul>
+    </div>
+  </div>
+</div>
+<div id="context-menu" class="context-menu"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+<script>
+// ─── Supabase config ──────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://jxpeztieqwotfgswhzhx.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp4cGV6dGllcXdvdGZnc3doemh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA4MzQ4MDQsImV4cCI6MjA4NjQxMDgwNH0.Hf-lbGlP2OmH7Uh2LNKqwHkwHDp7yQV6O73aXw5NCZk';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ─── Supabase helpers ─────────────────────────────────────────────────────────
+async function sbSave(table, zone, data) {
+  const { error } = await sb.from(table).upsert({ id: zone, zone, data, updated_at: new Date().toISOString() });
+  if (error) console.error(`sbSave ${table}:`, error);
+}
+async function sbLoad(table, zone) {
+  const { data, error } = await sb.from(table).select('data').eq('id', zone).single();
+  if (error) return null;
+  return data?.data ?? null;
+}
+async function sbSaveGlobal(table, data) {
+  const { error } = await sb.from(table).upsert({ id: 'global', data, updated_at: new Date().toISOString() });
+  if (error) console.error(`sbSaveGlobal ${table}:`, error);
+}
+async function sbLoadGlobal(table) {
+  const { data, error } = await sb.from(table).select('data').eq('id', 'global').single();
+  if (error) return null;
+  return data?.data ?? null;
+}
+
+// ─── Realtime subscriptions ───────────────────────────────────────────────────
+let _realtimeChannel = null;
+
+function subscribeToZone(zone) {
+  if (_realtimeChannel) { sb.removeChannel(_realtimeChannel); _realtimeChannel = null; }
+
+  _realtimeChannel = sb.channel(`zone_${zone}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'records', filter: `id=eq.${zone}` }, payload => {
+      const incoming = payload.new?.data;
+      if (!incoming) return;
+      allRecords = Array.isArray(incoming) ? incoming : Object.values(incoming);
+      localStorage.setItem(`records_${zone}`, JSON.stringify(allRecords));
+      checkNuevosSinTecnico(allRecords);
+      populateFilters(); renderMarkersDebounced(); updateStatistics();
+      flashRealtimeIndicator('Registros actualizados');
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'coords', filter: `id=eq.${zone}` }, payload => {
+      const incoming = payload.new?.data;
+      if (!incoming) return;
+      customCoords = Array.isArray(incoming) ? incoming : Object.values(incoming);
+      localStorage.setItem(`customCoords_${zone}`, JSON.stringify(customCoords));
+      renderCustomCoordsList(); updateCategoryCheckboxes(); renderMarkersDebounced();
+      flashRealtimeIndicator('Coordenadas actualizadas');
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'tech_images', filter: `id=eq.global` }, payload => {
+      const incoming = payload.new?.data;
+      if (!incoming) return;
+      techImages = incoming;
+      localStorage.setItem('techImages', JSON.stringify(techImages));
+      renderMarkersDebounced();
+      flashRealtimeIndicator('Imágenes actualizadas');
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'technician_list', filter: `id=eq.global` }, payload => {
+      const incoming = payload.new?.data;
+      if (!incoming) return;
+      // ── Siempre actualiza desde Supabase, nunca desde localStorage ──
+      technicianList = Array.isArray(incoming) ? incoming : Object.values(incoming);
+      localStorage.setItem('technicianList', JSON.stringify(technicianList));
+      flashRealtimeIndicator('Lista de técnicos actualizada');
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'category_images', filter: `id=eq.global` }, payload => {
+      const incoming = payload.new?.data;
+      if (!incoming) return;
+      const {_lastUpload, ...imgs} = incoming;
+      categoryImages = imgs;
+      localStorage.setItem('categoryImages', JSON.stringify(categoryImages));
+      if(_lastUpload) updateLastUploadLabel(_lastUpload);
+      renderMarkersDebounced();
+      flashRealtimeIndicator('Imágenes de categorías actualizadas');
+    })
+    .subscribe();
+}
+
+// ─── GPS channel (independiente, no se destruye al cambiar zona) ──────────────
+let _gpsChannel = null;
+
+function subscribeGps(){
+  if(_gpsChannel){ sb.removeChannel(_gpsChannel); _gpsChannel=null; }
+  _gpsChannel = sb.channel('gps_tracking')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'user_locations' }, payload => {
+      if(payload.eventType==='DELETE'){
+        delete gpsMarkers[payload.old?.id];
+      } else {
+        const u=payload.new;
+        if(u) gpsMarkers[u.id]={nombre:u.nombre,lat:u.lat,lng:u.lng,updated_at:u.updated_at};
+      }
+      // Sin indicador para ubicación GPS
+      renderGpsMarkers();
+    })
+    .subscribe(status=>{
+      console.log('GPS channel status:', status);
+    });
+
+  // Polling de respaldo cada 5 segundos por si el realtime falla
+  if(window._gpsPolling) clearInterval(window._gpsPolling);
+  window._gpsPolling = setInterval(async()=>{
+    const{data,error}=await sb.from('user_locations').select('*');
+    if(error||!data) return;
+    let changed=false;
+    data.forEach(u=>{
+      const prev=gpsMarkers[u.id];
+      // Comparar solo updated_at es suficiente (cubre lat/lng/nombre a la vez)
+      if(!prev||prev.updated_at!==u.updated_at){
+        gpsMarkers[u.id]={nombre:u.nombre,lat:u.lat,lng:u.lng,updated_at:u.updated_at};
+        changed=true;
+      }
+    });
+    const dataIds=new Set(data.map(u=>u.id));
+    Object.keys(gpsMarkers).forEach(id=>{
+      if(!dataIds.has(id)){delete gpsMarkers[id];changed=true;}
+    });
+    if(changed){renderGpsMarkers();} // Actualización silenciosa en segundo plano
+  }, 5000);
+}
+
+// ─── Liberación automática de ubicaciones GPS a las 23:00 ────────────────────
+async function releaseGpsLocations(){
+  try {
+    const { error } = await sb.from('user_locations').delete().neq('id', '__never__');
+    if(error){ console.warn('releaseGpsLocations error:', error); return; }
+    gpsMarkers = {};
+    renderGpsMarkers();
+    console.log('[AutoRelease] Ubicaciones GPS liberadas a las 23:00');
+  } catch(e){ console.warn('releaseGpsLocations exception:', e); }
+}
+
+function scheduleNightRelease(){
+  function msUntil23(){
+    const now = new Date();
+    const target = new Date();
+    target.setHours(23, 0, 0, 0);
+    if(now >= target) target.setDate(target.getDate() + 1);
+    return target - now;
+  }
+  function armNext(){
+    const delay = msUntil23();
+    console.log(`[AutoRelease] Próxima liberación en ${Math.round(delay/60000)} min`);
+    setTimeout(async () => {
+      await releaseGpsLocations();
+      armNext();
+    }, delay);
+  }
+  armNext();
+}
+
+// ─── GPS Markers (ubicaciones en tiempo real de técnicos) ─────────────────────
+let gpsMarkers = {}; // { id: {nombre, lat, lng, updated_at} }
+let gpsLeafletMarkers = {};
+
+async function loadGpsMarkers(){
+  const {data,error}=await sb.from('user_locations').select('*');
+  if(error||!data) return;
+  data.forEach(u=>{ gpsMarkers[u.id]={nombre:u.nombre,lat:u.lat,lng:u.lng,updated_at:u.updated_at}; });
+  renderGpsMarkers();
+}
+
+function renderGpsMarkers(){
+  // Eliminar markers que ya no están activos
+  Object.keys(gpsLeafletMarkers).forEach(id=>{
+    if(!gpsMarkers[id]){ map.removeLayer(gpsLeafletMarkers[id]); delete gpsLeafletMarkers[id]; }
+  });
+  // Mover o crear markers
+  Object.entries(gpsMarkers).forEach(([id,u])=>{
+    if(gpsLeafletMarkers[id]){
+      // Ya existe → solo mover
+      gpsLeafletMarkers[id].setLatLng([u.lat, u.lng]);
+      const mins=Math.floor((Date.now()-new Date(u.updated_at))/60000);
+      gpsLeafletMarkers[id].bindPopup(`<div style="font-size:13px;"><strong>🚗 ${u.nombre}</strong><br><span style="color:#555;font-size:11px;">Hace ${mins<1?'menos de 1':mins} min</span></div>`);
+    } else {
+      // No existe → crear — sonar sonido de conexión
+      playConnectionSound(u.nombre);
+      const iconHtml=`
+        <div style="position:relative;text-align:center;background:transparent;">
+          <div style="font-size:22px;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.4));">🚗</div>
+          <div style="
+            background:white;
+            color:#333;
+            font-size:10px;
+            font-weight:bold;
+            padding:2px 8px;
+            border-radius:4px;
+            white-space:nowrap;
+            display:inline-block;
+            margin-top:2px;
+            box-shadow:0 1px 4px rgba(0,0,0,0.25);
+            border:1px solid #ddd;
+            max-width:150px;
+            overflow:hidden;
+            text-overflow:ellipsis;
+          ">${u.nombre}</div>
+        </div>`;
+      const marker=L.marker([u.lat,u.lng],{
+        icon:L.divIcon({className:'',html:iconHtml,iconSize:[80,50],iconAnchor:[16,16]}),
+        zIndexOffset:2000
+      }).addTo(map);
+      const mins=Math.floor((Date.now()-new Date(u.updated_at))/60000);
+      marker.bindPopup(`<div style="font-size:13px;"><strong>🚗 ${u.nombre}</strong><br><span style="color:#555;font-size:11px;">Hace ${mins<1?'menos de 1':mins} min</span></div>`);
+      gpsLeafletMarkers[id]=marker;
+    }
+  });
+}
+
+// ─── Realtime indicator ───────────────────────────────────────────────────────
+let _fadeTimer = null;
+function flashRealtimeIndicator(msg) {
+  const el = document.getElementById('realtime-indicator'); if (!el) return;
+  if (_fadeTimer) clearTimeout(_fadeTimer);
+  el.classList.remove('fade-out');
+  el.classList.add('show');
+  el.innerHTML = `<i class="fas fa-sync-alt fa-spin me-1"></i> ${msg}`;
+  _fadeTimer = setTimeout(() => {
+    el.classList.add('fade-out');
+    setTimeout(() => el.classList.remove('show', 'fade-out'), 600);
+  }, 3000);
+}
+
+// ─── Globals ──────────────────────────────────────────────────────────────────
+let map, markers = [], allRecords = [], techColors = {}, techImages = {}, customCoords = [];
+let currentRecord = null, technicianList = [], countdownInterval = null;
+window.currentSuggestions = [];
+let alertsEnabled = localStorage.getItem('alertsEnabled') !== 'false';
+let selectedZone = localStorage.getItem('selectedZone') || 'LIMA';
+const INTERVALS = [{name:'8/12',start:8,end:12},{name:'12/16',start:12,end:16},{name:'16/20',start:16,end:20}];
+
+const savedTI = localStorage.getItem('techImages');
+if (savedTI) techImages = JSON.parse(savedTI);
+const savedCC = localStorage.getItem(`customCoords_${selectedZone}`);
+if (savedCC) customCoords = JSON.parse(savedCC);
+let categoryImages = {}; // { "Zona sin Cobertura-LIMA": "base64...", ... }
+const savedCI = localStorage.getItem('categoryImages');
+if (savedCI) categoryImages = JSON.parse(savedCI);
+
+function normalizeString(s) { return s ? s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase() : ''; }
+function showLoading(v) { document.getElementById('loading-overlay').style.display = v ? 'flex' : 'none'; }
+
+// ─── Utilidades de rendimiento ────────────────────────────────────────────────
+let _markerIdCounter = 0;
+function nextMarkerId() { return ++_markerIdCounter; }
+
+function debounce(fn, ms) {
+  let timer;
+  return function(...args) { clearTimeout(timer); timer = setTimeout(() => fn.apply(this, args), ms); };
+}
+function updateLastUploadLabel(fecha){
+  const lbl=document.getElementById('last-upload-label');
+  if(lbl) lbl.textContent=`Ult. carga: ${fecha}`;
+}
+
+// ─── Sonido para nuevos registros sin técnico ─────────────────────────────────
+let _prevSinTecnicoCount = -1; // -1 = nunca inicializado
+function checkNuevosSinTecnico(records){
+  const sinTecnico = records.filter(r=>!r.Tecnico).length;
+  // Sonar si: es primera carga con sin técnico, O si aumentaron los sin técnico
+  if(sinTecnico > 0 && (_prevSinTecnicoCount === -1 || sinTecnico > _prevSinTecnicoCount)){
+    playNotificationSound();
+    showSinTecnicoAlert(sinTecnico);
+  }
+  _prevSinTecnicoCount = sinTecnico;
+}
+
+function showSinTecnicoAlert(total){
+  // Mostrar en el indicador superior
+  const el=document.getElementById('realtime-indicator');
+  if(!el) return;
+  if(window._fadeTimer) clearTimeout(window._fadeTimer);
+  el.classList.remove('fade-out');
+  el.classList.add('show');
+  el.style.background='rgba(220,53,69,0.92)';
+  el.innerHTML=`⚠ ${total} registro${total!==1?'s':''} sin técnico asignado`;
+  // Se queda visible 6 segundos
+  window._fadeTimer=setTimeout(()=>{
+    el.style.background='';
+    el.classList.add('fade-out');
+    setTimeout(()=>{el.classList.remove('show','fade-out');el.style.background='';},600);
+  },6000);
+}
+
+function playConnectionSound(nombre){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const playTone=(freq,start,dur)=>{
+      const osc=ctx.createOscillator(),gain=ctx.createGain();
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.frequency.value=freq;osc.type='sine';
+      gain.gain.setValueAtTime(0.2,ctx.currentTime+start);
+      gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+start+dur);
+      osc.start(ctx.currentTime+start);osc.stop(ctx.currentTime+start+dur);
+    };
+    // Tono de conexión: dos notas suaves ascendentes
+    playTone(600,0,0.12);
+    playTone(900,0.15,0.18);
+    flashRealtimeIndicator(`🚗 ${nombre} conectado`);
+  }catch(e){console.warn('Audio conexión:',e);}
+}
+
+function playNotificationSound(){
+  try{
+    // Crear tono de notificación con Web Audio API
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const playTone = (freq, start, duration) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.3, ctx.currentTime + start);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + duration);
+      osc.start(ctx.currentTime + start);
+      osc.stop(ctx.currentTime + start + duration);
+    };
+    // Dos tonos ascendentes — señal de nuevo registro
+    playTone(880, 0,    0.15);
+    playTone(1100, 0.18, 0.15);
+    // Notificación del sistema si tiene permiso
+    if(Notification.permission==='granted'){
+      new Notification('Nueva orden sin técnico', {body:'Hay registros nuevos sin técnico asignado', icon:'https://cdn-icons-png.flaticon.com/512/1865/1865269.png'});
+    }
+  }catch(e){ console.warn('Audio error:',e); }
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  selectedZone = localStorage.getItem('selectedZone') || 'LIMA';
+  document.getElementById(`zone-${selectedZone.toLowerCase()}`).checked = true;
+
+  if (Notification.permission !== 'granted' && Notification.permission !== 'denied')
+    Notification.requestPermission();
+
+  document.querySelectorAll('input[name="zoneSelector"]').forEach(r => {
+    r.addEventListener('change', function() {
+      if (!this.checked) return;
+      selectedZone = this.value;
+      localStorage.setItem('selectedZone', selectedZone);
+      updateCheckboxVisibility();
+      showLoading(true);
+      loadZoneData(selectedZone);
+    });
+  });
+
+  initMap();
+  setupEventListeners();
+  setupStyleLegend();
+  setupCoordForm();
+  setupCodigoAutocomplete();
+
+  // Restaurar fecha de última carga desde Supabase
+  const savedUpload = localStorage.getItem('lastUploadDate');
+  if(savedUpload) updateLastUploadLabel(savedUpload);
+
+  ['format-8-12','format-12-16','format-16-20'].forEach(id => {
+    const el = document.getElementById(id); if (!el) return;
+    el.checked = localStorage.getItem(id) === 'true';
+    updateFormatToggleLabel(el);
+    el.addEventListener('change', function() { localStorage.setItem(id, this.checked); updateFormatToggleLabel(this); renderMarkers(); });
+  });
+
+  const showKml = document.getElementById('show-kml-points');
+  if (showKml) showKml.checked = localStorage.getItem('showKmlPoints') === 'true';
+
+  if (!localStorage.getItem('deletedRecordsByCategory'))
+    localStorage.setItem('deletedRecordsByCategory', JSON.stringify({}));
+
+  // ── Cargar imágenes técnicos ──────────────────────────────────────────────
+  const fbTI = await sbLoadGlobal('tech_images');
+  if (fbTI) { techImages = fbTI; localStorage.setItem('techImages', JSON.stringify(techImages)); }
+
+  // Restaurar fecha de última carga desde Supabase
+  const fbCatImg = await sbLoadGlobal('category_images');
+  if(fbCatImg){
+    const {_lastUpload, ...imgs} = fbCatImg;
+    categoryImages = imgs;
+    localStorage.setItem('categoryImages', JSON.stringify(categoryImages));
+    if(_lastUpload) updateLastUploadLabel(_lastUpload);
+  }
+
+  // ── Cargar lista de técnicos SIEMPRE desde Supabase (nunca localStorage) ──
+  localStorage.removeItem('technicianList'); // limpiar cache local siempre
+  const fbTL = await sbLoadGlobal('technician_list');
+  if (Array.isArray(fbTL) && fbTL.length > 0) {
+    // Supabase tiene datos → usarlos y actualizar localStorage
+    technicianList = fbTL;
+    localStorage.setItem('technicianList', JSON.stringify(technicianList));
+  } else {
+    // Primera vez que no hay nada en Supabase → subir lista base
+    technicianList = [
+      "JOSEP FABIAN","DANIEL COLMENAREZ","YENSIS GONZALEZ","JOSE TRAVEZAÑO",
+      "ANDERSON LANDAETA","KEVIN RUIZ","EDUARDO CHAFLOQUE","CARLOS ALBAN",
+      "JORGE CHAFLOQUE","EFRAIN TITO","JUAN MORENO","OMAR PALOMINO",
+      "JONY STUAR","EMERSON SOTO","WIDNE PEREZ","FERNANDO FALCON",
+      "ERIN TIHUAY","ALEXANDER AGUILAR","ERICK MORALES","LUIS CARRION",
+      "JOEL MANUEL","CRUZ OSORIO","EDISON PAGAN","MARTIN VASQUEZ",
+      "ALFONSO PEREZ","MARCO VALENCIA","DIEGO PEREZ","JONNY VEGA",
+      "DONATO PEREZ","JHONATHAN CAMACHO"
+    ];
+    localStorage.setItem('technicianList', JSON.stringify(technicianList));
+    await sbSaveGlobal('technician_list', technicianList);
+  }
+
+  document.addEventListener('click', e => {
+    const cm = document.getElementById('context-menu');
+    if (cm && !cm.contains(e.target)) cm.style.display = 'none';
+  });
+
+  showLoading(true);
+  await loadZoneData(selectedZone);
+  await loadGpsMarkers();
+  subscribeGps();
+  scheduleNightRelease(); // Liberación automática de ubicaciones a las 23:00
+});
+
+// ─── Load zone data ───────────────────────────────────────────────────────────
+async function loadZoneData(zone) {
+  try {
+    const [recData, coordData] = await Promise.all([
+      sbLoad('records', zone),
+      sbLoad('coords',  zone)
+    ]);
+
+    // Si Supabase tiene datos usarlos, si no usar localStorage como fallback
+    if(recData !== null){
+      allRecords = Array.isArray(recData) ? recData : Object.values(recData);
+      localStorage.setItem(`records_${zone}`, JSON.stringify(allRecords));
+    } else {
+      const local = localStorage.getItem(`records_${zone}`);
+      allRecords = local ? JSON.parse(local) : [];
+    }
+
+    if(coordData !== null){
+      customCoords = Array.isArray(coordData) ? coordData : Object.values(coordData);
+      localStorage.setItem(`customCoords_${zone}`, JSON.stringify(customCoords));
+    } else {
+      const local = localStorage.getItem(`customCoords_${zone}`);
+      customCoords = local ? JSON.parse(local) : [];
+    }
+
+    // Reset zoom para que fitBounds muestre los datos de la zona nueva
+    window._userHasZoomed = false;
+
+    populateFilters(); renderMarkers(); updateStatistics();
+    renderCustomCoordsList(); updateCategoryCheckboxes();
+    showLoading(false);
+    subscribeToZone(zone);
+  } catch(e) {
+    console.error('loadZoneData error:', e);
+    // Fallback a localStorage si Supabase falla
+    const localRec = localStorage.getItem(`records_${zone}`);
+    const localCoord = localStorage.getItem(`customCoords_${zone}`);
+    allRecords   = localRec   ? JSON.parse(localRec)   : [];
+    customCoords = localCoord ? JSON.parse(localCoord) : [];
+    window._userHasZoomed = false;
+    populateFilters(); renderMarkers(); updateStatistics();
+    renderCustomCoordsList(); updateCategoryCheckboxes();
+    showLoading(false);
+  }
+}
+
+// ─── Map ──────────────────────────────────────────────────────────────────────
+function initMap() {
+  map = L.map('map').setView([-12.0464, -77.0428], 12);
+  applyMapStyle(localStorage.getItem('selectedStyle') || MAP_STYLES[0].name);
+  const to = document.createElement('div');
+  to.id = 'global-timer-overlay'; to.style.display = 'none';
+  document.getElementById('map-container').appendChild(to);
+  // Detectar cuando el usuario hace zoom/pan manualmente
+  map.on('zoomend moveend', function(e){
+    if(e.type==='zoomend') window._userHasZoomed = true;
+  });
+  startCountdownTimer();
+}
+
+// ─── Event listeners ──────────────────────────────────────────────────────────
+function setupEventListeners() {
+  document.getElementById('toggle-sidebar')?.addEventListener('click', function() {
+    document.getElementById('sidebar').classList.toggle('collapsed');
+    this.classList.toggle('collapsed');
+  });
+  document.getElementById('close-detail')?.addEventListener('click', () => document.getElementById('detail-panel').classList.remove('open'));
+  document.getElementById('delete-record')?.addEventListener('click', () => { if (currentRecord) deleteRecord(currentRecord.id); });
+  document.getElementById('clear-filters')?.addEventListener('click', () => {
+    ['tramo-filter','estado-filter','tecnico-filter','negocio-filter','distrito-filter'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+    applyFilters(); updateFilterCountBadge(); renderTechnicianSummary();
+  });
+  ['tramo-filter','estado-filter','tecnico-filter','negocio-filter','distrito-filter'].forEach(id =>
+    document.getElementById(id)?.addEventListener('change', () => { applyFilters(); updateFilterCountBadge(); renderTechnicianSummary(); }));
+  document.getElementById('excel-upload')?.addEventListener('change', handleExcelUpload);
+  document.getElementById('tech-image-upload')?.addEventListener('change', handleTechImageUpload);
+  document.getElementById('kml-upload')?.addEventListener('change', handleKmlUpload);
+  document.getElementById('search-codigo-btn')?.addEventListener('click', searchByCodigo);
+  document.getElementById('codigo-search')?.addEventListener('keypress', e => { if(e.key==='Enter') searchByCodigo(); });
+  document.getElementById('show-tooltips')?.addEventListener('change', function() { localStorage.setItem('showTooltips', this.checked); renderMarkers(); });
+  document.getElementById('show-kml-points')?.addEventListener('change', function() { localStorage.setItem('showKmlPoints', this.checked); renderMarkers(); });
+  document.getElementById('save-pin-btn')?.addEventListener('click', saveTecnicoPin);
+}
+
+// ─── PIN Management ───────────────────────────────────────────────────────────
+async function saveTecnicoPin(){
+  const tecnico=document.getElementById('pin-tecnico-select').value;
+  const pin=document.getElementById('pin-input').value.trim();
+  const msg=document.getElementById('pin-msg');
+  if(!tecnico){msg.innerHTML='<span class="text-danger">Selecciona un técnico.</span>';return;}
+  if(!/^\d{4}$/.test(pin)){msg.innerHTML='<span class="text-danger">El PIN debe tener exactamente 4 dígitos.</span>';return;}
+  const id=tecnico.replace(/\s+/g,'_').toLowerCase();
+  const{error}=await sb.from('technician_pins').upsert({id,pin,updated_at:new Date().toISOString()});
+  if(error){msg.innerHTML='<span class="text-danger">Error al guardar PIN.</span>';return;}
+  msg.innerHTML=`<span class="text-success">✓ PIN guardado para ${tecnico}</span>`;
+  document.getElementById('pin-input').value='';
+  setTimeout(()=>{msg.innerHTML='';},3000);
+}
+
+// ─── Filters ──────────────────────────────────────────────────────────────────
+function populateFilters() {
+  ['tramo-filter','estado-filter','tecnico-filter','negocio-filter','distrito-filter'].forEach(id => {
+    const el = document.getElementById(id); if (!el) return;
+    el.innerHTML = el.options[0].outerHTML;
+  });
+  const tramos   = [...new Set(allRecords.map(r=>r.Tramo).filter(Boolean))].sort();
+  const estados  = [...new Set(allRecords.map(r=>r.Estado2).filter(Boolean))].sort();
+  const tecnicos = [...new Set(allRecords.map(r=>r.Tecnico).filter(Boolean))].sort();
+  const negocios = [...new Set(allRecords.map(r=>r.Negocio).filter(Boolean))].sort();
+  const distMap  = new Map();
+  allRecords.forEach(r => { if(r.Distrito){const n=normalizeString(r.Distrito);if(!distMap.has(n))distMap.set(n,r.Distrito);}});
+  const distritos = Array.from(distMap.values()).sort();
+  const tf=document.getElementById('tramo-filter'), ef=document.getElementById('estado-filter'),
+        tecf=document.getElementById('tecnico-filter'), nf=document.getElementById('negocio-filter'),
+        df=document.getElementById('distrito-filter');
+
+  // Usar DocumentFragment para minimizar reflows del DOM
+  function appendOptions(select, items, extraBefore, extraAfter) {
+    const frag = document.createDocumentFragment();
+    if(extraBefore) { const o=document.createElement('option'); o.value=extraBefore.v; o.textContent=extraBefore.t; frag.appendChild(o); }
+    items.forEach(val => { const o=document.createElement('option'); o.value=val; o.textContent=val; frag.appendChild(o); });
+    if(extraAfter)  { const o=document.createElement('option'); o.value=extraAfter.v;  o.textContent=extraAfter.t;  frag.appendChild(o); }
+    select.appendChild(frag);
+  }
+  appendOptions(tf,   tramos);
+  appendOptions(df,   distritos);
+  appendOptions(ef,   estados, {v:'pendiente_combinado', t:'PENDIENTE'});
+  appendOptions(tecf, tecnicos, null, {v:'sin_tecnico', t:'Sin técnico'});
+  appendOptions(nf,   negocios);
+
+  const imgSel = document.getElementById('image-tecnico-select');
+  if (imgSel) {
+    imgSel.innerHTML = '<option value="">Selecciona técnico</option><option value="sin_tecnico">Sin técnico</option>';
+    const frag=document.createDocumentFragment();
+    tecnicos.forEach(t => { const o=document.createElement('option'); o.value=t; o.textContent=t; frag.appendChild(o); });
+    imgSel.appendChild(frag);
+  }
+  const pinSel = document.getElementById('pin-tecnico-select');
+  if (pinSel) {
+    pinSel.innerHTML = '<option value="">Selecciona técnico</option>';
+    tecnicos.forEach(t => pinSel.insertAdjacentHTML('beforeend', `<option value="${t}">${t}</option>`));
+  }
+  renderTechnicianSummary();
+}
+
+function getFilteredRecords(){
+  const t=document.getElementById('tramo-filter')?.value,
+        e=document.getElementById('estado-filter')?.value,
+        tech=document.getElementById('tecnico-filter')?.value,
+        neg=document.getElementById('negocio-filter')?.value,
+        dist=document.getElementById('distrito-filter')?.value;
+  let f=allRecords;
+  if(t) f=f.filter(r=>r.Tramo===t);
+  if(e){ if(e==='pendiente_combinado') f=f.filter(r=>['PROGRAMADO','EN CAMINO','COORDINADO'].includes(r.Estado2)); else f=f.filter(r=>r.Estado2===e); }
+  if(tech) f=f.filter(r=>tech==='sin_tecnico'?!r.Tecnico:r.Tecnico===tech);
+  if(neg)  f=f.filter(r=>r.Negocio===neg);
+  if(dist){const nd=normalizeString(dist);f=f.filter(r=>normalizeString(r.Distrito)===nd);}
+  return f;
+}
+
+function renderMarkers() {
+  const currentZoom = map.getZoom();
+  const currentCenter = map.getCenter();
+  clearMarkers();
+  // Siempre respetar filtros activos
+  renderMarkersFromRecords(getFilteredRecords());
+  if(!window._userHasZoomed){
+    if(markers.length>0) map.fitBounds(new L.featureGroup(markers).getBounds(),{padding:[50,50]});
+  } else {
+    map.setView(currentCenter, currentZoom, {animate:false});
+  }
+  updateFilterCountBadge();
+}
+const renderMarkersDebounced = debounce(renderMarkers, 80);
+
+function applyFilters() {
+  clearMarkers();
+  renderMarkersFromRecords(getFilteredRecords());
+  const t=document.getElementById('tramo-filter')?.value,
+        e=document.getElementById('estado-filter')?.value,
+        tech=document.getElementById('tecnico-filter')?.value,
+        neg=document.getElementById('negocio-filter')?.value,
+        dist=document.getElementById('distrito-filter')?.value;
+  if(markers.length>0 && (t||e||tech||neg||dist)){
+    window._userHasZoomed = false;
+    map.fitBounds(new L.featureGroup(markers).getBounds(),{padding:[50,50]});
+  }
+  updateFilterCountBadge();
+}
+
+function renderMarkersFromRecords(records) {
+  // Nota: clearMarkers() ya fue llamado por renderMarkers() o applyFilters() antes de esta función
+  const colors=['#4285F4','#EA4335','#FBBC05','#34A853','#8E24AA'];
+  [...new Set(records.map(r=>r.Tecnico).filter(Boolean))].forEach((t,i)=>{if(!techColors[t])techColors[t]=colors[i%colors.length];});
+  techColors['sin_tecnico']='#9E9E9E';
+  const showTips=localStorage.getItem('showTooltips')!=='false';
+  const visCat={};
+  document.querySelectorAll('#category-checkboxes input[type="checkbox"]:checked').forEach(cb=>{
+    const z=cb.dataset.zone;if(!visCat[z])visCat[z]=[];visCat[z].push(cb.dataset.category);
+  });
+  records.forEach(record=>{
+    const lat=record.latitud_Y,lng=record.longitud_X;if(!lat||!lng)return;
+    const estado=record.Estado||'N/A';
+    const color=record.Tecnico&&techColors[record.Tecnico]?techColors[record.Tecnico]:techColors['sin_tecnico'];
+    const imgSrc=record.Tecnico?techImages[record.Tecnico]:techImages['sin_tecnico'];
+
+    // Detectar si tiene pendiente con tramo
+    const matchTramo=estado.match(/(8\/12|12\/16|16\/20)/);
+    const esPendiente=matchTramo&&/(pendiente|coord)/i.test(estado);
+    const iv=esPendiente?getIntervalFromRange(matchTramo[1]):null;
+    const now=new Date();
+    const nowSegs=now.getHours()*3600+now.getMinutes()*60+now.getSeconds();
+    const venceSegs=iv?iv.end*3600:null;
+    const alertaSegs=venceSegs?venceSegs-3600:null;
+    const yaVencio=venceSegs&&nowSegs>=venceSegs;
+    const enAlerta=alertaSegs&&nowSegs>=alertaSegs&&nowSegs<venceSegs;
+
+    // Flecha ↓ solo para pins sin técnico asignado
+    const sinTecnico=!record.Tecnico;
+    const flechaHtml=sinTecnico?`<div style="position:absolute;top:-22px;left:50%;transform:translateX(-50%);font-size:20px;line-height:1;z-index:9998;pointer-events:none;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.6));animation:arrowBounce 1s ease-in-out infinite alternate;">▼</div>`:'';
+
+    let marker;
+    if(imgSrc){
+      const wrapId=`mw-${nextMarkerId()}`;
+      let overlayHtml='';
+      if(yaVencio) overlayHtml=`<div class="countdown-overlay" style="display:block;background:rgba(200,0,0,0.90);color:white;font-weight:bold;position:absolute;top:-14px;left:0;width:100%;text-align:center;font-size:10px;padding:1px;z-index:10;pointer-events:none;white-space:nowrap;">ORDEN VENCIDA</div>`;
+      const iconHtml=`<div id="${wrapId}" style="position:relative;width:30px;height:30px;overflow:visible;">${!yaVencio?flechaHtml:''}${overlayHtml}<img src="${imgSrc}" style="width:30px;height:30px;border-radius:50%;"/></div>`;
+      marker=L.marker([lat,lng],{icon:L.divIcon({className:'',html:iconHtml,iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
+      if(showTips)marker.bindTooltip(estado,{permanent:true,direction:'right',className:shouldApplyFormatting(estado)?'estado-label estado-pendiente':'estado-label',offset:[5,0]});
+    } else {
+      let overlayHtml='';
+      if(yaVencio) overlayHtml=`<div class="countdown-overlay" style="display:block;background:rgba(200,0,0,0.90);color:white;font-weight:bold;position:absolute;top:-14px;left:0;width:30px;text-align:center;font-size:10px;padding:1px;z-index:10;pointer-events:none;white-space:nowrap;">ORDEN VENCIDA</div>`;
+      let html=`<div style="position:relative;overflow:visible;">${!yaVencio?flechaHtml:''}${overlayHtml}<div class="custom-pin" style="--color:${color}">${estado.charAt(0)}</div></div>`;
+      if(showTips)html+=`<div class="${shouldApplyFormatting(estado)?'estado-label estado-pendiente':'estado-label'}">${estado}</div>`;
+      marker=L.marker([lat,lng],{icon:L.divIcon({className:'custom-marker-container',html,iconSize:[100,30],iconAnchor:[15,15]})}).addTo(map);
+    }
+    marker.on('contextmenu',e=>{e.originalEvent.preventDefault();showContextMenu(e.originalEvent.clientX,e.originalEvent.clientY,marker.record);});
+    marker.record=record;
+    marker.on('click',()=>showRecordDetails(record));
+    markers.push(marker);
+  });
+  const showKml=localStorage.getItem('showKmlPoints')==='true';
+  customCoords.forEach(c=>{
+    // showKml solo aplica a categoría Dirección de Técnicos
+    if(c.kml && c.category==='Dirección de Técnicos' && !showKml)return;
+    if(c.zone!==selectedZone)return;
+    const cz=c.zone||selectedZone;if(!visCat[cz]||!visCat[cz].includes(c.category))return;
+    const catColors={'Zona sin Cobertura':'#FF5722','Sin FFTT':'#9C27B0','Zona Peligrosa':'#F44336','Dirección de Técnicos':'#3F51B5'};
+    // Usar imagen de categoryImages por categoría-zona (independiente por categoría)
+    const imgKey=`${c.category}-${cz}`;
+    const imgSrcCoord=categoryImages[imgKey]||c.imgData||null;
+    let marker;
+    if(imgSrcCoord){
+      const wrapId=`cw-${nextMarkerId()}`;
+      const iconHtml=`<div id="${wrapId}" style="position:relative;width:30px;height:30px;overflow:visible;"><img src="${imgSrcCoord}" style="width:30px;height:30px;border-radius:50%;"/></div>`;
+      marker=L.marker([c.lat,c.lng],{icon:L.divIcon({className:'',html:iconHtml,iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
+    } else {
+      const col=catColors[c.category]||'#607D8B';
+      marker=L.marker([c.lat,c.lng],{icon:L.divIcon({className:'custom-pin',html:`<div class="custom-pin" style="--color:${col}">?</div>`,iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
+    }
+    if(c.category==='Dirección de Técnicos'&&c.note)marker.bindTooltip(c.note,{permanent:true,direction:'right',className:'estado-label',offset:[5,0]});
+    else marker.bindPopup(`<strong>${c.category}</strong><br>${c.note||''}`);
+    marker.on('click',()=>showRecordDetails(c));
+    markers.push(marker);
+  });
+}
+
+function clearMarkers(){markers.forEach(m=>map.removeLayer(m));markers=[];}
+
+// ─── CRUD ─────────────────────────────────────────────────────────────────────
+function deleteRecord(recordId){
+  showLoading(true);
+  setTimeout(async()=>{
+    const isManual=customCoords.some(c=>c.id===recordId);
+    if(isManual){
+      customCoords=customCoords.filter(c=>c.id!==recordId);
+      localStorage.setItem(`customCoords_${selectedZone}`,JSON.stringify(customCoords));
+      await sbSave('coords',selectedZone,customCoords);renderCustomCoordsList();
+    } else {
+      allRecords=allRecords.filter(r=>r.id!==recordId);
+      localStorage.setItem(`records_${selectedZone}`,JSON.stringify(allRecords));
+      await sbSave('records',selectedZone,allRecords);populateFilters();
+    }
+    document.getElementById('detail-panel').classList.remove('open');
+    renderMarkers();updateStatistics();showLoading(false);
+    showToast('✓ Registro eliminado correctamente','success');
+  },300);
+}
+
+async function updateRecordTechnician(recordId,newTech){
+  const idx=allRecords.findIndex(r=>r.id===recordId);if(idx===-1)return;
+  allRecords[idx].Tecnico=newTech;
+  localStorage.setItem(`records_${selectedZone}`,JSON.stringify(allRecords));
+  await sbSave('records',selectedZone,allRecords);
+  renderMarkers();updateStatistics();showRecordDetails(allRecords[idx]);renderTechnicianSummary();
+}
+
+async function updateRecordObservation(recordId,obs){
+  const idx=allRecords.findIndex(r=>r.id===recordId);if(idx===-1)return;
+  allRecords[idx].Observaciones=obs;
+  localStorage.setItem(`records_${selectedZone}`,JSON.stringify(allRecords));
+  await sbSave('records',selectedZone,allRecords);
+  showToast('✓ Observación guardada','success');
+}
+
+async function updateManualCoordinate(coordId,newCat,newNote){
+  const idx=customCoords.findIndex(c=>c.id===coordId);if(idx===-1)return;
+  customCoords[idx].category=newCat;customCoords[idx].note=newNote;
+  localStorage.setItem(`customCoords_${selectedZone}`,JSON.stringify(customCoords));
+  await sbSave('coords',selectedZone,customCoords);
+  renderCustomCoordsList();updateCategoryCheckboxes();showRecordDetails(customCoords[idx]);
+  showToast('✓ Coordenada actualizada','success');
+}
+
+// ─── Excel upload ─────────────────────────────────────────────────────────────
+function handleExcelUpload(e){
+  const file=e.target.files[0];if(!file)return;
+  showLoading(true);
+  const reader=new FileReader();
+  reader.onload=async function(evt){
+    const wb=XLSX.read(new Uint8Array(evt.target.result),{type:'array'});
+    const json=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
+    const newRecords=[],coordMap=new Map();
+    json.forEach(row=>{
+      const lat=parseFloat(row.latitud_Y),lng=parseFloat(row.longitud_X);
+      if(isNaN(lat)||isNaN(lng))return;
+      const key=`${lat},${lng}`;if(coordMap.has(key))return;coordMap.set(key,true);
+      newRecords.push({id:row.id||row.ID||row.Codigo||Date.now()+Math.random(),Codigo:row.Codigo,Cliente:row.Cliente,Direccion:row.Direccion,longitud_X:lng,latitud_Y:lat,Ubicacion:row.Ubicacion,Location:row.Location||row.location||row.LOCATION||'',Distrito:row.Distrito,Tecnico:row.Tecnico,Estado:row.Estado,Observaciones:row.Observaciones,Estado2:row.Estado2,Tramo:row.Tramo,Negocio:row.Negocio});
+    });
+    allRecords=newRecords;
+    window._userHasZoomed = false;
+    // Guardar y mostrar fecha/hora de última carga en Supabase (visible para todos)
+    const now=new Date();
+    const fechaStr=now.toLocaleDateString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+now.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    await sbSaveGlobal('category_images', {...(await sbLoadGlobal('category_images')||{}), _lastUpload: fechaStr});
+    updateLastUploadLabel(fechaStr);
+    localStorage.setItem(`records_${selectedZone}`,JSON.stringify(allRecords));
+    await sbSave('records',selectedZone,allRecords);
+    flashRealtimeIndicator(`${newRecords.length} registros publicados en tiempo real`);
+    _prevSinTecnicoCount=-1; // reset para detectar como primera carga
+    checkNuevosSinTecnico(allRecords);
+    populateFilters();renderMarkers();updateStatistics();showLoading(false);e.target.value='';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ─── Tech image upload ────────────────────────────────────────────────────────
+function handleTechImageUpload(e){
+  const file=e.target.files[0],tecnico=document.getElementById('image-tecnico-select').value;
+  if(!file||!tecnico){showToast('⚠ Debe seleccionar un técnico y una imagen','warning');e.target.value='';return;}
+  const reader=new FileReader();
+  reader.onload=async function(evt){
+    techImages[tecnico]=evt.target.result;
+    localStorage.setItem('techImages',JSON.stringify(techImages));
+    await sbSaveGlobal('tech_images',techImages);
+    renderMarkers();showToast(`✓ Imagen asignada a "${tecnico}"`,'success');e.target.value='';
+  };
+  reader.readAsDataURL(file);
+}
+
+// ─── KML upload ───────────────────────────────────────────────────────────────
+function handleKmlUpload(e){
+  const file=e.target.files[0];if(!file)return;
+  const msgEl=document.getElementById('kml-upload-msg');
+  msgEl.textContent='Procesando KML...';msgEl.className='small mt-1 text-info';
+  const html=`<div class="modal fade" id="kmlCatModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Seleccionar Categoría</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><select id="kml-category-select" class="form-select"><option value="Zona sin Cobertura">Zona sin Cobertura</option><option value="Sin FFTT">Sin FFTT</option><option value="Zona Peligrosa">Zona Peligrosa</option><option value="Dirección de Técnicos">Dirección de Técnicos</option></select></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-primary" id="kml-confirm-btn">Confirmar</button></div></div></div></div>`;
+  const mc=document.createElement('div');mc.innerHTML=html;document.body.appendChild(mc);
+  const modalEl=document.getElementById('kmlCatModal'),modal=new bootstrap.Modal(modalEl);modal.show();
+  document.getElementById('kml-confirm-btn').addEventListener('click',function(){
+    const cat=document.getElementById('kml-category-select').value;
+    modal.hide();showLoading(true);
+    const reader=new FileReader();
+    reader.onload=async function(evt){
+      try{
+        const doc=new DOMParser().parseFromString(evt.target.result,'text/xml');
+        const pms=doc.getElementsByTagName('Placemark');
+        const newCoords=[];
+        for(let i=0;i<pms.length;i++){
+          const pm=pms[i];
+          const name=pm.querySelector('name')?.textContent||'';
+          const coords=pm.getElementsByTagName('coordinates')[0]?.textContent.trim();
+          if(!coords)continue;const parts=coords.split(',');if(parts.length<2)continue;
+          const lng=parseFloat(parts[0]),lat=parseFloat(parts[1]);
+          if(isNaN(lat)||isNaN(lng))continue;
+          newCoords.push({id:Date.now()+i,lat,lng,category:cat,note:name,imgData:null,zone:selectedZone,kml:true});
+        }
+        // ── Acumular por categoría: elimina solo los KML de ESTA categoría y zona,
+        //    conserva las demás categorías intactas ──
+        const sinEstaCategoria=customCoords.filter(c=>!(c.kml&&c.zone===selectedZone&&c.category===cat));
+        customCoords=[...sinEstaCategoria,...newCoords];
+        localStorage.setItem(`customCoords_${selectedZone}`,JSON.stringify(customCoords));
+        await sbSave('coords',selectedZone,customCoords);
+        flashRealtimeIndicator(`${newCoords.length} puntos KML publicados en tiempo real`);
+        renderCustomCoordsList();updateCategoryCheckboxes();renderMarkers();
+        msgEl.textContent=`${newCoords.length} coordenadas procesadas.`;msgEl.className='small mt-1 text-success';
+        showLoading(false);
+      }catch(err){msgEl.textContent='Error KML: '+err.message;msgEl.className='small mt-1 text-danger';showLoading(false);}
+    };
+    reader.readAsText(file);
+  });
+  modalEl.addEventListener('hidden.bs.modal',()=>{if(mc.parentNode===document.body)document.body.removeChild(mc);});
+}
+
+// ─── Coord form ───────────────────────────────────────────────────────────────
+function setupCoordForm(){
+  document.getElementById('save-coord').addEventListener('click',()=>{
+    const loc=document.getElementById('coord-input').value.trim();
+    const cat=document.getElementById('coord-category').value;
+    if(!loc||!cat){showToast('⚠ Debe ingresar ubicación y categoría','warning');return;}
+    const parts=loc.split(',').map(s=>parseFloat(s.trim()));
+    if(parts.length!==2||parts.some(isNaN)){showToast('⚠ Formato inválido. Use "lat, lng"','warning');return;}
+    const note=document.getElementById('coord-note').value.trim();
+    const file=document.getElementById('coord-image').files[0];
+    const entry={id:Date.now(),lat:parts[0],lng:parts[1],category:cat,note,imgData:null,zone:selectedZone};
+    if(file){const r=new FileReader();r.onload=e=>{entry.imgData=e.target.result;saveAndRenderCoord(entry);};r.readAsDataURL(file);}
+    else saveAndRenderCoord(entry);
+  });
+  document.getElementById('coord-input').addEventListener('input',function(){
+    const parts=this.value.trim().split(',').map(s=>parseFloat(s.trim()));
+    if(parts.length===2&&!parts.some(isNaN)){
+      if(window.tempPreviewMarker)map.removeLayer(window.tempPreviewMarker);
+      window.tempPreviewMarker=L.marker([parts[0],parts[1]],{icon:L.divIcon({className:'custom-pin',html:`<div class="custom-pin" style="--color:#4285F4;opacity:.6">📍</div>`,iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
+      map.setView([parts[0],parts[1]],15);
+    }
+  });
+  updateCategoryCheckboxes();
+}
+
+async function saveAndRenderCoord(entry){
+  entry.zone=selectedZone;
+  const mm=new Map();
+  customCoords.forEach(c=>mm.set(`${c.lat},${c.lng},${c.zone}`,c));
+  const k=`${entry.lat},${entry.lng},${entry.zone}`;
+  const ex=mm.get(k);if(ex&&ex.imgData&&!entry.imgData)entry.imgData=ex.imgData;
+  mm.set(k,entry);customCoords=Array.from(mm.values());
+  localStorage.setItem(`customCoords_${selectedZone}`,JSON.stringify(customCoords));
+  await sbSave('coords',selectedZone,customCoords);
+  renderCustomCoordsList();updateCategoryCheckboxes();renderMarkers();
+  ['coord-input','coord-category','coord-note','coord-image'].forEach(id=>document.getElementById(id).value='');
+  showToast('✓ Coordenada guardada','success');
+}
+
+function updateCategoryCheckboxes(){
+  const container=document.getElementById('category-checkboxes');if(!container)return;
+  container.innerHTML='';
+  const counts={};
+  customCoords.forEach(c=>{const z=c.zone||selectedZone;const k=`${c.category}-${z}`;counts[k]=(counts[k]||0)+1;});
+  const uniq=[...new Set(customCoords.map(c=>c.category))];
+
+  // Etiquetas cortas por categoría
+  const shortName={'Zona sin Cobertura':'S/Cob','Sin FFTT':'S/FFTT','Zona Peligrosa':'Peligrosa','Dirección de Técnicos':'Técnicos'};
+
+  uniq.forEach(category=>{
+    ['LIMA','PROVINCIA'].forEach(zone=>{
+      const k=`${category}-${zone}`;if(!counts[k])return;
+      const catId=`category-${category.replace(/\s+/g,'-').toLowerCase()}-${zone}`;
+      const imgKey=`${category}-${zone}`;
+      const hasImg=!!categoryImages[imgKey];
+
+      // Fila única compacta
+      const div=document.createElement('div');
+      div.dataset.zone=zone;
+      div.style.cssText=`display:${zone===selectedZone?'flex':'none'};align-items:center;gap:4px;padding:3px 4px;margin-bottom:3px;background:#f8f9fa;border-radius:5px;border:1px solid #dee2e6;`;
+
+      // Checkbox
+      const cb=document.createElement('input');cb.type='checkbox';cb.id=catId;cb.dataset.category=category;cb.dataset.zone=zone;cb.checked=localStorage.getItem(catId)!=='false';cb.style.flexShrink='0';
+
+      // Label corto
+      const lbl=document.createElement('label');lbl.htmlFor=catId;
+      lbl.style.cssText='font-size:11px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;';
+      lbl.title=`${category} - ${zone}`;
+      lbl.textContent=`${shortName[category]||category} (${counts[k]})`;
+
+      // Botón imagen
+      const fileInp=document.createElement('input');fileInp.type='file';fileInp.accept='.jpg,.jpeg,.png';fileInp.className='visually-hidden';
+      const imgBtn=document.createElement('button');
+      imgBtn.style.cssText=`padding:1px 5px;font-size:10px;border-radius:3px;border:1px solid ${hasImg?'#28a745':'#6c757d'};background:${hasImg?'#28a745':'transparent'};color:${hasImg?'white':'#6c757d'};cursor:pointer;flex-shrink:0;`;
+      imgBtn.innerHTML=hasImg?'✓🖼':'🖼';
+      imgBtn.title=hasImg?`Cambiar imagen de "${category}"`:` Asignar imagen a "${category}"`;
+      imgBtn.addEventListener('click',()=>fileInp.click());
+      fileInp.addEventListener('change',async function(ev){
+        const f=ev.target.files[0];if(!f)return;
+        const rdr=new FileReader();
+        rdr.onload=async function(e2){
+          categoryImages[imgKey]=e2.target.result;
+          localStorage.setItem('categoryImages',JSON.stringify(categoryImages));
+          const current=await sbLoadGlobal('category_images')||{};
+          await sbSaveGlobal('category_images',{...current,...categoryImages});
+          updateCategoryCheckboxes();renderMarkers();fileInp.value='';
+        };rdr.readAsDataURL(f);
+      });
+
+      // Botón quitar imagen (solo si tiene)
+      if(hasImg){
+        const delImgBtn=document.createElement('button');
+        delImgBtn.style.cssText='padding:1px 5px;font-size:10px;border-radius:3px;border:1px solid #dc3545;background:transparent;color:#dc3545;cursor:pointer;flex-shrink:0;';
+        delImgBtn.innerHTML='✕';delImgBtn.title=`Quitar imagen de "${category}"`;
+        delImgBtn.addEventListener('click',async()=>{
+          delete categoryImages[imgKey];
+          localStorage.setItem('categoryImages',JSON.stringify(categoryImages));
+          const current=await sbLoadGlobal('category_images')||{};
+          delete current[imgKey];
+          await sbSaveGlobal('category_images',current);
+          updateCategoryCheckboxes();renderMarkers();
+        });
+        div.appendChild(delImgBtn);
+      }
+
+      // Botón limpiar
+      const clearBtn=document.createElement('button');
+      clearBtn.style.cssText='padding:1px 5px;font-size:10px;border-radius:3px;border:1px solid #dc3545;background:transparent;color:#dc3545;cursor:pointer;flex-shrink:0;';
+      clearBtn.innerHTML='🗑';clearBtn.title=`Eliminar todos los puntos de "${category}" - ${zone}`;
+      clearBtn.addEventListener('click',async()=>{
+        if(!confirm(`¿Eliminar todos los puntos de "${category}" - ${zone}?`))return;
+        customCoords=customCoords.filter(c=>!(c.category===category&&(c.zone||selectedZone)===zone));
+        localStorage.setItem(`customCoords_${selectedZone}`,JSON.stringify(customCoords));
+        await sbSave('coords',selectedZone,customCoords);
+        renderCustomCoordsList();updateCategoryCheckboxes();renderMarkers();
+        flashRealtimeIndicator(`"${category}" limpiado`);
+      });
+
+      div.appendChild(cb);div.appendChild(lbl);div.appendChild(imgBtn);div.appendChild(clearBtn);div.appendChild(fileInp);
+      container.appendChild(div);
+      cb.addEventListener('change',function(){localStorage.setItem(this.id,this.checked);renderMarkers();});
+    });
+  });
+}
+
+function updateCheckboxVisibility(){
+  document.querySelectorAll('#category-checkboxes div[data-zone]').forEach(div=>{
+    div.style.display=div.dataset.zone===selectedZone?'flex':'none';
+  });
+}
+
+function renderCustomCoordsList(){
+  const ul=document.getElementById('coord-list');ul.innerHTML='';
+  customCoords.forEach(c=>{
+    const li=document.createElement('li');li.className='list-group-item d-flex justify-content-between align-items-center';
+    li.innerHTML=`<div>${c.category} (${c.lat.toFixed(4)}, ${c.lng.toFixed(4)})<br><small>${c.note||''}</small></div><button class="btn btn-sm btn-danger">&times;</button>`;
+    li.querySelector('button').addEventListener('click',async()=>{
+      customCoords=customCoords.filter(x=>x.id!==c.id);
+      localStorage.setItem(`customCoords_${selectedZone}`,JSON.stringify(customCoords));
+      await sbSave('coords',selectedZone,customCoords);
+      renderCustomCoordsList();renderMarkers();
+    });
+    ul.appendChild(li);
+  });
+  updateCategoryCheckboxes();
+}
+
+function deleteRecordsByCategory(category){
+  const html=`<div class="modal fade" id="delCatModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Confirmar Eliminación</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p>¿Eliminar permanentemente la categoría <strong>${category}</strong>?</p></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-danger" id="del-cat-confirm">Eliminar</button></div></div></div></div>`;
+  const mc=document.createElement('div');mc.innerHTML=html;document.body.appendChild(mc);
+  const modalEl=document.getElementById('delCatModal'),modal=new bootstrap.Modal(modalEl);modal.show();
+  document.getElementById('del-cat-confirm').addEventListener('click',async function(){
+    const toDelete=customCoords.filter(c=>c.category===category);
+    customCoords=customCoords.filter(c=>c.category!==category);
+    const del=JSON.parse(localStorage.getItem('deletedRecordsByCategory')||'{}');
+    del[category]=toDelete;
+    localStorage.setItem('deletedRecordsByCategory',JSON.stringify(del));
+    localStorage.setItem(`customCoords_${selectedZone}`,JSON.stringify(customCoords));
+    await sbSave('coords',selectedZone,customCoords);
+    renderCustomCoordsList();updateCategoryCheckboxes();renderMarkers();
+    document.getElementById('detail-panel').classList.remove('open');
+    modal.hide();showToast(`✓ Categoría "${category}" eliminada`,'success');
+  });
+  modalEl.addEventListener('hidden.bs.modal',()=>{if(mc.parentNode===document.body)document.body.removeChild(mc);});
+}
+
+async function restoreRecordsByCategory(category){
+  const del=JSON.parse(localStorage.getItem('deletedRecordsByCategory')||'{}');
+  if(!del[category]||!del[category].length)return;
+  customCoords=customCoords.concat(del[category]);delete del[category];
+  localStorage.setItem('deletedRecordsByCategory',JSON.stringify(del));
+  localStorage.setItem(`customCoords_${selectedZone}`,JSON.stringify(customCoords));
+  await sbSave('coords',selectedZone,customCoords);
+  renderCustomCoordsList();updateCategoryCheckboxes();renderMarkers();
+  document.getElementById('detail-panel').classList.remove('open');
+  showToast(`✓ Categoría "${category}" restaurada`,'success');
+}
+
+// ─── Detail panel ─────────────────────────────────────────────────────────────
+function showRecordDetails(record){
+  currentRecord=record;
+  const detailPanel=document.getElementById('detail-panel'),recordDetails=document.getElementById('record-details');
+  const isManual=!record.Codigo&&record.category!==undefined;
+  let html='';
+  if(isManual){
+    const catOpts=['Zona sin Cobertura','Sin FFTT','Zona Peligrosa','Dirección de Técnicos'].map(c=>`<option value="${c}"${c===record.category?' selected':''}>${c}</option>`).join('');
+    html=`<div class="mb-3 p-3 bg-light rounded"><h6>Coordenada Manual</h6><div><strong>Coordenadas:</strong> ${record.lat.toFixed(6)}, ${record.lng.toFixed(6)}</div></div>
+    <div class="row g-3"><div class="col-12"><strong>Categoría:</strong><select id="update-category-dropdown" class="form-select form-select-sm mt-1">${catOpts}</select></div>
+    <div class="col-12"><strong>Observación:</strong><textarea id="coord-observation" class="form-control mt-1">${record.note||''}</textarea></div>
+    <div class="col-12 mt-3"><button id="update-coord-btn" class="btn btn-primary">Actualizar Coordenada</button></div></div>
+    <div class="col-12 mt-3"><button id="delete-category-btn" class="btn btn-danger">Eliminar Todos de Esta Categoría</button>
+    <button id="restore-category-btn" class="btn btn-warning ms-2" style="display:none;">Restaurar Categoría</button></div>`;
+  } else {
+    const allTechs=[...new Set(allRecords.map(r=>r.Tecnico).filter(Boolean))];
+    const techOpts='<option value="">Sin asignar</option>'+allTechs.map(t=>`<option value="${t}"${t===record.Tecnico?' selected':''}>${t}</option>`).join('');
+    const eB=record.Estado==='Completado'?'bg-success':record.Estado==='En proceso'?'bg-primary':'bg-warning';
+    const e2B=record.Estado2==='Normal'?'bg-info':'bg-danger';
+    const isPend=record.Estado&&/(pendiente|coord).*?(8\/12|12\/16|16\/20)/i.test(record.Estado);
+    const countHtml='';
+    const sugg=!record.Tecnico?getTechnicianSuggestions(record):[];
+    window.currentSuggestions=sugg;
+    const suggHtml=sugg.length?`<div class="col-12 mt-2"><h6>Técnicos Sugeridos:</h6><div class="d-flex flex-wrap gap-2">${sugg.map(t=>`<button class="btn btn-sm btn-outline-primary tech-suggestion-btn" data-tech="${t}">${t}</button>`).join('')}</div></div>`:'';
+    html=`<div class="mb-2"><strong>Código:</strong> ${record.Codigo} <span class="ms-3"><strong>Negocio:</strong> ${record.Negocio}</span></div>
+    <div class="mb-3 p-3 bg-light rounded"><h6>${record.Cliente}</h6></div>
+    <div class="row g-3">
+    <div class="col-12"><strong>Dirección:</strong> ${record.Direccion}</div>
+    <div class="col-12"><strong>Location:</strong> ${record.Location ? `<a href="${record.Location}" target="_blank" class="text-break">${record.Location}</a>` : '<em class="text-muted">No disponible</em>'}</div>
+    <div class="col-12"><strong>Distrito:</strong> ${record.Distrito}</div>
+    <div class="col-12"><strong>Técnico:</strong><select id="assign-tech-dropdown" class="form-select form-select-sm mt-1">${techOpts}</select></div>
+    ${suggHtml}
+    <div class="col-6"><strong>Estado:</strong> <span class="badge ${eB}">${record.Estado}</span></div>
+    <div class="col-6"><strong>Estado 2:</strong> <span class="badge ${e2B}">${record.Estado2}</span></div>
+    ${countHtml}
+    <div class="col-12"><strong>Observaciones:</strong><textarea id="record-observation" class="form-control mt-1">${record.Observaciones||''}</textarea>
+    <button id="save-observation-btn" class="btn btn-sm btn-outline-primary mt-2">Guardar Observación</button></div>
+    <div class="col-12"><strong>Tramo:</strong> ${record.Tramo}</div></div>
+    <div class="mt-4 border-top pt-3"><h6>Descargar Registros</h6><div class="btn-group">
+    <button id="download-excel" class="btn btn-sm btn-success"><i class="fas fa-file-excel me-1"></i> Excel</button>
+    <button id="download-csv" class="btn btn-sm btn-primary"><i class="fas fa-file-csv me-1"></i> CSV</button>
+    </div></div>`;
+  }
+  recordDetails.innerHTML=html;
+  if(isManual){
+    document.getElementById('update-coord-btn').addEventListener('click',()=>updateManualCoordinate(record.id,document.getElementById('update-category-dropdown').value,document.getElementById('coord-observation').value));
+    document.getElementById('delete-category-btn').addEventListener('click',()=>{if(confirm(`¿Eliminar todos de "${record.category}"?`))deleteRecordsByCategory(record.category);});
+    const del=JSON.parse(localStorage.getItem('deletedRecordsByCategory')||'{}');
+    if(del[record.category]&&del[record.category].length>0){
+      const rb=document.getElementById('restore-category-btn');rb.style.display='inline-block';
+      rb.addEventListener('click',()=>{if(confirm(`¿Restaurar ${del[record.category].length} registros?`))restoreRecordsByCategory(record.category);});
+    }
+  } else {
+    document.getElementById('assign-tech-dropdown').addEventListener('change',function(){updateRecordTechnician(record.id,this.value);});
+    document.getElementById('save-observation-btn').addEventListener('click',()=>updateRecordObservation(record.id,document.getElementById('record-observation').value));
+    document.getElementById('download-excel').addEventListener('click',downloadRecordsAsExcel);
+    document.getElementById('download-csv').addEventListener('click',downloadRecordsAsCSV);
+    document.querySelectorAll('.tech-suggestion-btn').forEach(btn=>btn.addEventListener('click',function(){
+      updateRecordTechnician(record.id,this.getAttribute('data-tech'));
+      const u=allRecords.find(r=>r.id===record.id);if(u)showRecordDetails(u);
+    }));
+  }
+  detailPanel.classList.add('open');
+  renderTechnicianSummary();
+}
+
+function updateStatistics(){
+  const n=allRecords.filter(r=>!r.Tecnico).length;
+  const el=document.getElementById('no-tech-summary');
+  if(el)el.innerHTML=`Sin técnico: <span class="badge bg-secondary">${n}</span> registros`;
+  // Badge rojo en el header
+  const badge=document.getElementById('sin-tech-badge');
+  if(badge){ badge.textContent=n; badge.style.display=n>0?'inline-block':'none'; }
+  // Actualizar contador de filtros
+  updateFilterCountBadge();
+}
+
+function renderTechnicianSummary(){
+  const sc=document.getElementById('tech-summary-content');if(!sc)return;
+  const ts={},noTech='Sin técnico';
+  allRecords.forEach(r=>{const t=r.Tecnico||noTech;if(!ts[t])ts[t]=0;ts[t]++;});
+  const currentFilter=document.getElementById('tecnico-filter')?.value||'';
+  let html='<table class="table table-sm table-borderless mb-0"><thead><tr><th>Técnico</th><th>Total</th></tr></thead><tbody>';
+  Object.keys(ts).sort((a,b)=>a===noTech?1:b===noTech?-1:a.localeCompare(b)).forEach(t=>{
+    const isSug=window.currentSuggestions&&window.currentSuggestions.includes(t);
+    const filterVal=t===noTech?'sin_tecnico':t;
+    const isActive=currentFilter===filterVal;
+    html+=`<tr data-tech-filter="${filterVal}" title="Click para filtrar por ${t}" class="${isActive?'active-filter':''}"><td class="text-nowrap ${isSug?'tech-suggested-highlight':''}">${t}</td><td><span class="badge bg-yellow text-dark">${ts[t]}</span></td></tr>`;
+  });
+  html+='</tbody></table>';
+  sc.innerHTML=html;
+  // Click en fila → filtrar mapa por ese técnico (toggle)
+  sc.querySelectorAll('tr[data-tech-filter]').forEach(row=>{
+    row.addEventListener('click',function(){
+      const tecf=document.getElementById('tecnico-filter');if(!tecf)return;
+      const val=this.dataset.techFilter;
+      tecf.value=(tecf.value===val)?'':val; // toggle: mismo click quita el filtro
+      applyFilters();
+      updateFilterCountBadge();
+    });
+  });
+}
+
+function searchByCodigo(){
+  const raw=document.getElementById('codigo-search').value.trim();
+  const msgEl=document.getElementById('codigo-search-msg');msgEl.textContent='';
+  if(!raw){msgEl.textContent='Ingrese un Código.';return;}
+  const num=Number(raw);
+  const record=allRecords.find(r=>{const c=r.Codigo,cn=Number(c);return !isNaN(num)&&!isNaN(cn)?cn===num:String(c)===raw;});
+  if(!record){msgEl.textContent=`Código "${raw}" no encontrado.`;return;}
+  map.setView([record.latitud_Y,record.longitud_X],16);
+  const popupHTML=`<div><strong>Código:</strong> ${record.Codigo}<br><strong>Cliente:</strong> ${record.Cliente}<br><strong>Dirección:</strong> ${record.Direccion}<br><strong>Estado:</strong> ${record.Estado}</div>`;
+  L.popup({offset:[0,-15]}).setLatLng([record.latitud_Y,record.longitud_X]).setContent(popupHTML).openOn(map);
+  // Resaltar el pin encontrado
+  const match=markers.find(m=>m.record&&(m.record.id===record.id||m.record.Codigo===record.Codigo));
+  if(match&&match.getElement){
+    const el=match.getElement();
+    if(el){el.classList.add('glow');setTimeout(()=>el.classList.remove('glow'),3000);}
+  }
+  showRecordDetails(record);
+}
+
+function downloadRecordsAsExcel(){const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(allRecords),'Registros');XLSX.writeFile(wb,'registros_asignados.xlsx');}
+function downloadRecordsAsCSV(){const csv=XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(allRecords));const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='registros_asignados.csv';a.click();}
+
+function getTechnicianSuggestions(record){
+  if(record.Tecnico)return[];
+  const wl={},byD={};
+  allRecords.forEach(r=>{if(!r.Tecnico)return;wl[r.Tecnico]=(wl[r.Tecnico]||0)+1;if(r.Distrito){if(!byD[r.Distrito])byD[r.Distrito]=new Set();byD[r.Distrito].add(r.Tecnico);}});
+  const inD=record.Distrito&&byD[record.Distrito]?Array.from(byD[record.Distrito]):[];
+  return Object.keys(wl).map(t=>({t,score:(inD.includes(t)?100:0)-(wl[t]*5)})).sort((a,b)=>b.score-a.score).slice(0,5).map(x=>x.t);
+}
+
+function startCountdownTimer(){if(countdownInterval)clearInterval(countdownInterval);countdownInterval=setInterval(updateCountdowns,1000);}
+function updateCountdowns(){
+  const now=new Date();
+  const hour=now.getHours(),min=now.getMinutes(),sec=now.getSeconds();
+  const nowSegs=hour*3600+min*60+sec;
+  let soon=0;
+
+  markers.forEach(marker=>{
+    if(!marker.record||!marker.record.Estado) return;
+    const estado=marker.record.Estado;
+    const match=estado.match(/(8\/12|12\/16|16\/20)/);
+    if(!match||!/(pendiente|coord)/i.test(estado)) return;
+    const iv=getIntervalFromRange(match[1]);
+    if(!iv) return;
+
+    const venceSegs  = iv.end*3600;
+    const alertaSegs = venceSegs-3600;
+    const restaSegs  = venceSegs-nowSegs;
+
+    let el=null;
+    try{el=marker.getElement();}catch(e){}
+    if(!el) return;
+
+    // Buscar o crear overlay dentro del elemento del marker
+    let ov=el.querySelector('.countdown-overlay');
+
+    if(nowSegs>=venceSegs){
+      if(!ov){ov=document.createElement('div');ov.className='countdown-overlay';el.insertBefore(ov,el.firstChild);}
+      ov.style.cssText='display:block!important;background:rgba(200,0,0,0.92)!important;color:white!important;font-weight:bold!important;position:absolute!important;top:-18px!important;left:0!important;min-width:55px!important;white-space:nowrap!important;font-size:10px!important;padding:2px 5px!important;border-radius:3px!important;z-index:9999!important;pointer-events:none!important;overflow:visible!important;';
+      ov.textContent='VENCIDO';
+      return;
+    }
+
+    if(nowSegs>=alertaSegs&&nowSegs<venceSegs){
+      const mm=Math.floor(restaSegs/60);
+      const ss=Math.floor(restaSegs%60);
+      if(!ov){ov=document.createElement('div');ov.className='countdown-overlay';el.insertBefore(ov,el.firstChild);}
+      ov.style.cssText='display:block!important;background:rgba(200,0,0,0.85)!important;color:white!important;font-weight:bold!important;position:absolute!important;top:-18px!important;left:0!important;min-width:45px!important;white-space:nowrap!important;font-size:10px!important;padding:2px 5px!important;border-radius:3px!important;z-index:9999!important;pointer-events:none!important;overflow:visible!important;';
+      ov.textContent=`⚠ ${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'00')}`;
+      soon++;
+    } else {
+      if(ov) ov.style.display='none';
+    }
+  });
+
+  const go=document.getElementById('global-timer-overlay');
+  if(go){
+    go.style.display=soon>0?'block':'none';
+    if(soon>0) go.textContent=`⚠ ${soon} pendiente${soon!==1?'s':''} por vencer`;
+  }
+}
+function getIntervalFromRange(tr){
+  if(!tr) return null;
+  const clean=tr.trim();
+  return [{name:'8/12',start:8,end:12},{name:'12/16',start:12,end:16},{name:'16/20',start:16,end:20}].find(i=>i.name===clean)||null;
+}
+function onCountdownEnd(record,marker){
+  const el=marker.getElement();if(!el)return;
+  el.classList.add('countdown-expired');
+  // Sin popup que interrumpa — solo overlay rojo fijo
+  let ov=el.querySelector('.countdown-overlay');
+  if(!ov){ov=document.createElement('div');ov.className='countdown-overlay';el.appendChild(ov);}
+  ov.style.display='block';
+  ov.style.background='rgba(200,0,0,0.90)';
+  ov.style.color='white';
+  ov.style.fontWeight='bold';
+  ov.textContent='ORDEN VENCIDA';
+}
+function shouldApplyFormatting(estado){
+  if(!estado) return false;
+  if(/8\/12/.test(estado)&&/(pendiente|coord)/i.test(estado))  return localStorage.getItem('format-8-12')==='true';
+  if(/12\/16/.test(estado)&&/(pendiente|coord)/i.test(estado)) return localStorage.getItem('format-12-16')==='true';
+  if(/16\/20/.test(estado)&&/(pendiente|coord)/i.test(estado)) return localStorage.getItem('format-16-20')==='true';
+  return false;
+}
+function updateFormatToggleLabel(toggle){const lbl=document.querySelector(`label[for="${toggle.id}"]`);if(lbl)lbl.classList.toggle('bg-yellow',toggle.checked);}
+
+const MAP_STYLES=[
+  {name:'CartoDB Positron',url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',attribution:'&copy; CartoDB'},
+  {name:'Light Mode',url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',attribution:'&copy; OpenStreetMap'},
+  {name:'Esri WorldImagery',url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',attribution:'Tiles &copy; Esri'},
+  {name:'Google Maps',url:'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',attribution:'&copy; Google Maps'},
+  {name:'Google Hybrid',url:'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',attribution:'&copy; Google Maps'}
+];
+let currentTileLayer;
+function applyMapStyle(name){
+  const s=MAP_STYLES.find(x=>x.name===name)||MAP_STYLES[0];
+  if(currentTileLayer)map.removeLayer(currentTileLayer);
+  currentTileLayer=L.tileLayer(s.url,{attribution:s.attribution}).addTo(map);
+  const lbl=document.getElementById('current-style-label');if(lbl)lbl.textContent=s.name;
+  localStorage.setItem('selectedStyle',s.name);highlightSidebarStyle(s.name);
+}
+function setupStyleLegend(){
+  const menu=document.querySelector('#style-legend .dropdown-menu');if(!menu)return;menu.innerHTML='';
+  MAP_STYLES.forEach(s=>{
+    const li=document.createElement('li');li.innerHTML=`<a class="dropdown-item" href="#">${s.name}</a>`;
+    li.querySelector('a').addEventListener('click',e=>{e.preventDefault();applyMapStyle(s.name);});
+    menu.appendChild(li);
+  });
+  buildSidebarStyleLegend();
+}
+function buildSidebarStyleLegend(){
+  const ul=document.getElementById('sidebar-style-legend');if(!ul)return;ul.innerHTML='';
+  MAP_STYLES.forEach(s=>{
+    const li=document.createElement('li');li.textContent=s.name;li.dataset.style=s.name;
+    li.addEventListener('click',()=>{applyMapStyle(s.name);highlightSidebarStyle(s.name);});
+    ul.appendChild(li);
+  });
+  highlightSidebarStyle(localStorage.getItem('selectedStyle')||MAP_STYLES[0].name);
+}
+function highlightSidebarStyle(name){document.querySelectorAll('#sidebar-style-legend li').forEach(li=>li.classList.toggle('active',li.dataset.style===name));}
+
+// ─── Context menu ─────────────────────────────────────────────────────────────
+function showContextMenu(x,y,record){
+  const cm=document.getElementById('context-menu');if(!cm)return;
+  cm.style.left=`${x}px`;cm.style.top=`${y}px`;
+  // technicianList ya viene fresco de Supabase (nunca de localStorage)
+  technicianList.sort((a,b)=>a.localeCompare(b));
+  let html=`<div class="context-menu-header">Asignar Técnico</div>
+    <div class="context-menu-item" data-tech="">Sin técnico</div>
+    <div class="context-menu-separator"></div>`;
+  technicianList.forEach(t=>{
+    html+=`<div class="context-menu-item${t===record.Tecnico?' bg-light fw-bold':''}" data-tech="${t}">${t}</div>`;
+  });
+  html+=`<div class="context-menu-separator"></div>
+    <div class="context-menu-item text-danger" data-action="delete-tech">Eliminar Técnico de la lista</div>
+    <div class="context-menu-separator"></div>
+    <input type="text" class="form-control form-control-sm context-menu-input" id="new-tech-input" placeholder="Nuevo técnico...">
+    <button class="btn btn-sm btn-primary context-menu-add-btn" id="add-tech-btn">Agregar Técnico</button>`;
+  cm.innerHTML=html;cm.style.display='block';
+
+  cm.querySelectorAll('.context-menu-item').forEach(item=>{
+    item.addEventListener('click',async function(){
+      if(this.getAttribute('data-action')==='delete-tech'){
+        const cur=record.Tecnico;
+        if(!cur||!confirm(`¿Eliminar al técnico "${cur}" de la lista?`)){cm.style.display='none';return;}
+        technicianList=technicianList.filter(t=>t!==cur);
+        await sbSaveGlobal('technician_list',technicianList);
+        // localStorage se actualiza solo via listener realtime
+        await updateRecordTechnician(record.id,'');
+        showContextMenu(x,y,{...record,Tecnico:''});
+        return;
+      }
+      await updateRecordTechnician(record.id,this.getAttribute('data-tech'));
+      showRecordDetails(record);cm.style.display='none';
+    });
+  });
+
+  async function addNewTech(){
+    const inp=document.getElementById('new-tech-input');if(!inp||!inp.value.trim())return;
+    const nt=inp.value.trim();
+    if(!technicianList.includes(nt)){
+      technicianList.push(nt);
+      technicianList.sort((a,b)=>a.localeCompare(b));
+      await sbSaveGlobal('technician_list',technicianList);
+      // localStorage se actualiza solo via listener realtime
+    }
+    await updateRecordTechnician(record.id,nt);
+    showRecordDetails(record);cm.style.display='none';
+  }
+  document.getElementById('add-tech-btn')?.addEventListener('click',addNewTech);
+  document.getElementById('new-tech-input')?.addEventListener('keypress',e=>{if(e.key==='Enter')addNewTech();});
+}
+
+if(localStorage.getItem('showTooltips')===null)localStorage.setItem('showTooltips','true');
+
+// ─── Smart toast (no bloqueante) ──────────────────────────────────────────────
+let _toastTimer=null;
+function showToast(msg, type='default', duration=3000){
+  const el=document.getElementById('smart-toast');if(!el)return;
+  if(_toastTimer)clearTimeout(_toastTimer);
+  const colors={default:'#323232',success:'#198754',danger:'#dc3545',warning:'#856404'};
+  el.style.background=colors[type]||colors.default;
+  if(type==='warning')el.style.color='#000';else el.style.color='#fff';
+  el.textContent=msg;
+  el.classList.remove('fade-out');el.classList.add('show');
+  _toastTimer=setTimeout(()=>{
+    el.classList.add('fade-out');
+    setTimeout(()=>{el.classList.remove('show','fade-out');},400);
+  },duration);
+}
+
+// ─── Contador de filtros activos ──────────────────────────────────────────────
+function updateFilterCountBadge(){
+  const total=allRecords.length;
+  const visible=getFilteredRecords().length;
+  const countBadge=document.getElementById('filter-count-badge');
+  const activeBadge=document.getElementById('filter-active-badge');
+  const clearBtn=document.getElementById('clear-filters');
+  const hasFilters=['tramo-filter','estado-filter','tecnico-filter','negocio-filter','distrito-filter'].some(id=>document.getElementById(id)?.value);
+  if(countBadge){countBadge.textContent=`${visible}/${total}`;countBadge.style.display='inline-block';}
+  if(activeBadge){activeBadge.style.display=hasFilters?'inline-block':'none';}
+  if(clearBtn){clearBtn.classList.toggle('has-filters',hasFilters);}
+}
+
+// ─── Autocompletado de búsqueda por Código ────────────────────────────────────
+function setupCodigoAutocomplete(){
+  const inp=document.getElementById('codigo-search');
+  const container=document.getElementById('codigo-autocomplete');
+  if(!inp||!container)return;
+  inp.addEventListener('input',function(){
+    const val=this.value.trim();
+    container.innerHTML='';
+    if(!val||val.length<2)return;
+    const matches=allRecords.filter(r=>r.Codigo&&String(r.Codigo).includes(val)).slice(0,8);
+    if(!matches.length)return;
+    const list=document.createElement('div');list.id='codigo-autocomplete-list';
+    matches.forEach(r=>{
+      const item=document.createElement('div');item.className='autocomplete-item';
+      const code=String(r.Codigo);
+      const hi=code.replace(new RegExp(`(${val})`,'g'),'<strong>$1</strong>');
+      item.innerHTML=`${hi} <small class="text-muted">— ${r.Cliente||''}</small>`;
+      item.addEventListener('mousedown',e=>{e.preventDefault();inp.value=code;container.innerHTML='';searchByCodigo();});
+      list.appendChild(item);
+    });
+    container.appendChild(list);
+  });
+  inp.addEventListener('blur',()=>setTimeout(()=>{container.innerHTML='';},200));
+}
+</script>
+</body>
+</html>
