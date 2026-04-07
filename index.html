@@ -883,7 +883,7 @@ function renderMarkersFromRecords(records) {
 
     // Flecha → roja para registros con Agencia: VENTA
     const esAgenciaVenta=record.Agencia&&String(record.Agencia).trim().toUpperCase()==='VENTA';
-    const flechaVentaHtml=esAgenciaVenta?`<div style="position:absolute;top:50%;right:-20px;transform:translateY(-50%);font-size:18px;line-height:1;z-index:9998;pointer-events:none;color:#FF0000;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));animation:arrowBounceRight 0.8s ease-in-out infinite alternate;">▶</div>`:'';
+    const flechaVentaHtml=esAgenciaVenta?`<div style="position:absolute;top:50%;right:-20px;transform:translateY(-50%);font-size:18px;line-height:1;z-index:9998;pointer-events:none;color:#FF0000;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));animation:arrowBounceRight 0.8s ease-in-out infinite alternate;">◀</div>`:'';
 
     let marker;
     if(imgSrc){
