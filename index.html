@@ -1350,8 +1350,44 @@ function searchByCodigo(){
   showRecordDetails(record);
 }
 
-function downloadRecordsAsExcel(){const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(allRecords),'Registros');XLSX.writeFile(wb,'registros_asignados.xlsx');}
-function downloadRecordsAsCSV(){const csv=XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(allRecords));const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='registros_asignados.csv';a.click();}
+function downloadRecordsAsExcel(){
+    const columnOrder = [
+        "id", "Tramo", "Codigo", "Estado", "Cliente", "Estado2", "Negocio",
+        "Tecnico", "Distrito", "Location", "Direccion", "latitud_Y", "longitud_X",
+        "Observaciones", "Agencia"
+    ];
+    const formattedData = allRecords.map(record => {
+        const newRecord = {};
+        columnOrder.forEach(col => {
+            newRecord[col] = record[col] !== undefined && record[col] !== null ? record[col] : "";
+        });
+        return newRecord;
+    });
+    const ws = XLSX.utils.json_to_sheet(formattedData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Registros');
+    XLSX.writeFile(wb, 'registros_asignados.xlsx');
+}
+
+function downloadRecordsAsCSV(){
+    const columnOrder = [
+        "id", "Tramo", "Codigo", "Estado", "Cliente", "Estado2", "Negocio",
+        "Tecnico", "Distrito", "Location", "Direccion", "latitud_Y", "longitud_X",
+        "Observaciones", "Agencia"
+    ];
+    const formattedData = allRecords.map(record => {
+        const newRecord = {};
+        columnOrder.forEach(col => {
+            newRecord[col] = record[col] !== undefined && record[col] !== null ? record[col] : "";
+        });
+        return newRecord;
+    });
+    const csv = XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(formattedData));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = 'registros_asignados.csv';
+    a.click();
+}
 
 function getTechnicianSuggestions(record){
   if(record.Tecnico)return[];
