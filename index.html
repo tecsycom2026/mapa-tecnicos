@@ -1412,6 +1412,7 @@ function updateFreeTechsPanel(){
   const techProgramado = {};
   const techFinalizado = {};
   const techEnProceso  = {};
+  const techEnCamino   = {};
   const techTotal      = {};
 
   allRecords.forEach(r => {
@@ -1420,13 +1421,14 @@ function updateFreeTechsPanel(){
     const e2 = r.Estado2 ? r.Estado2.trim().toUpperCase() : '';
     if(e2 === 'PROGRAMADO') techProgramado[r.Tecnico] = (techProgramado[r.Tecnico]||0) + 1;
     if(e2 === 'FINALIZADO') techFinalizado[r.Tecnico] = (techFinalizado[r.Tecnico]||0) + 1;
-    if(e2 === 'EN PROCESO') techEnProceso[r.Tecnico] = (techEnProceso[r.Tecnico]||0) + 1;
+    if(e2 === 'EN PROCESO') techEnProceso[r.Tecnico]  = (techEnProceso[r.Tecnico]||0)  + 1;
+    if(e2 === 'EN CAMINO')  techEnCamino[r.Tecnico]   = (techEnCamino[r.Tecnico]||0)   + 1;
   });
 
   // Técnico LIBRE = tiene órdenes asignadas, NINGUNA en PROGRAMADO y NINGUNA en FINALIZADO
   const EXCLUIDOS = ['MICHELL SULCA','ROSA GALVEZ','WENDY PUELL'];
   const freeTechs = Object.keys(techTotal)
-    .filter(t => !techProgramado[t] && !techFinalizado[t] && !techEnProceso[t] && !EXCLUIDOS.includes(t.trim().toUpperCase()))
+    .filter(t => !techProgramado[t] && !techFinalizado[t] && !techEnProceso[t] && !techEnCamino[t] && !EXCLUIDOS.includes(t.trim().toUpperCase()))
     .map(t => [t, techTotal[t]])
     .sort((a,b) => a[0].localeCompare(b[0]));
 
