@@ -316,7 +316,7 @@
     <!-- Panel flotante: Técnicos pendientes (Estado2 = PROGRAMADO) -->
     <div id="free-techs-panel" class="hidden">
       <div id="free-techs-header">
-        <span>&#9888;&#65039; Técnicos Libres Ahora</span>
+        <span>&#9888;&#65039; Técnicos Libres en Tramo Actual</span>
         <span class="ft-count" id="free-techs-count">0</span>
         <span class="ft-toggle-icon" id="free-techs-arrow">&#9650;</span>
       </div>
@@ -1464,7 +1464,7 @@ function updateFreeTechsPanel(){
 
   body.innerHTML = freeTechs.map(([name]) =>
     `<div class="free-tech-item">
-      <span class="ft-icon">&#128100;</span>
+      <span class="ft-icon">&#128119;</span>
       <span class="ft-name">${name}</span>
     </div>`
   ).join('');
