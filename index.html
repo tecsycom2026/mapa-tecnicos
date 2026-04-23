@@ -1097,9 +1097,9 @@ function renderMarkersFromRecords(records) {
     const esAgenciaVenta=record.Agencia&&String(record.Agencia).trim().toUpperCase()==='VENTA';
     const flechaVentaHtml=esAgenciaVenta?`<div style="position:absolute;top:50%;right:-20px;transform:translateY(-50%);font-size:18px;line-height:1;z-index:9998;pointer-events:none;color:#FF0000;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));animation:arrowBounceRight 0.8s ease-in-out infinite alternate;">◀</div>`:'';
 
-    // Badge 🧰 naranja para registros con Negocio: GARANTÍA
-    const esGarantia=record.Negocio&&String(record.Negocio).trim().toUpperCase()==='GARANTÍA'||record.Negocio&&String(record.Negocio).trim().toUpperCase()==='GARANTIA';
-    const garantiaHtml=esGarantia?`<div style="position:absolute;top:-10px;left:-10px;z-index:9999;pointer-events:none;font-size:14px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.6));animation:garantiaPulse 1.4s ease-in-out infinite;">🧰</div>`+`<div style="position:absolute;top:-18px;left:0px;z-index:9999;pointer-events:none;background:#FF8C00;color:#fff;font-size:8px;font-weight:bold;padding:1px 4px;border-radius:3px;white-space:nowrap;line-height:1.4;">GAR</div>`:'';
+    // Badge 🧰 para registros con Negocio: GARANTÍA
+    const esGarantia=record.Negocio&&['GARANTÍA','GARANTIA'].includes(String(record.Negocio).trim().toUpperCase());
+    const garantiaHtml=esGarantia?`<div style="position:absolute;top:-12px;left:-12px;z-index:9999;pointer-events:none;font-size:15px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.6));animation:garantiaPulse 1.4s ease-in-out infinite;">🧰</div>`:'';
 
     let marker;
     if(imgSrc){
@@ -1496,7 +1496,7 @@ function showRecordDetails(record){
     <div class="col-6"><strong>Estado:</strong> <span class="badge ${eB}">${record.Estado}</span></div>
     <div class="col-6"><strong>Estado 2:</strong> <span class="badge ${e2B}">${record.Estado2}</span></div>
     ${record.Agencia?`<div class="col-12"><strong>Agencia:</strong> <span class="badge ${String(record.Agencia).trim().toUpperCase()==='VENTA'?'bg-danger':'bg-secondary'}">${record.Agencia}</span></div>`:''}
-    ${(record.Negocio&&(String(record.Negocio).trim().toUpperCase()==='GARANTÍA'||String(record.Negocio).trim().toUpperCase()==='GARANTIA'))?`<div class="col-12"><strong>Tipo:</strong> <span class="badge" style="background:#FF8C00;font-size:12px;">🧰 GARANTÍA</span> <small class="text-muted ms-1">Orden de reparación</small></div>`:''}
+    ${(record.Negocio&&['GARANTÍA','GARANTIA'].includes(String(record.Negocio).trim().toUpperCase()))?`<div class="col-12"><strong>Tipo:</strong> <span class="badge" style="background:#FF8C00;font-size:12px;">🧰 GARANTÍA</span> <small class="text-muted ms-1">Orden de reparación</small></div>`:''}
     ${countHtml}
     <div class="col-12"><strong>Observaciones:</strong><textarea id="record-observation" class="form-control mt-1">${record.Observaciones||''}</textarea>
     <button id="save-observation-btn" class="btn btn-sm btn-outline-primary mt-2">Guardar Observación</button></div>
