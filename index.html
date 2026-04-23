@@ -1556,21 +1556,42 @@ function updateFreeTechsPanel(){
   const ESTADOS_BLOQUEANTES = new Set(['PROGRAMADO','EN CAMINO','EN PROCESO','COORDINADO']);
   const EXCLUIDOS = ['MICHELL SULCA','ROSA GALVEZ','WENDY PUELL'];
 
+  // Regla especial 3er tramo: si son >= 18:00, cualquier FINALIZADO en cualquier tramo bloquea
+  const esTerceTramoTardio = nowHour >= 18;
+
   const techTotal = {};
   const techBloqueado = new Set();
+  const techFinalizadoCount = {}; // cuenta FINALIZADO en cualquier tramo por técnico
 
   allRecords.forEach(r => {
     if(!r.Tecnico) return;
     techTotal[r.Tecnico] = (techTotal[r.Tecnico]||0) + 1;
 
     const e2 = r.Estado2 ? r.Estado2.trim().toUpperCase() : '';
-    if(!ESTADOS_BLOQUEANTES.has(e2)) return; // estado no bloqueante → ignorar
 
-    // Si el Tramo de esta orden coincide con el tramo del sistema → bloquear técnico
-    if(tramoEnCurso(r.Tramo)){
+    // Contabilizar FINALIZADO en cualquier tramo (para regla >= 18h)
+    if(e2 === 'FINALIZADO'){
+      techFinalizadoCount[r.Tecnico] = (techFinalizadoCount[r.Tecnico]||0) + 1;
+    }
+
+    // Bloquear si tiene orden PROGRAMADO/EN CAMINO/etc en el tramo activo
+    if(ESTADOS_BLOQUEANTES.has(e2) && tramoEnCurso(r.Tramo)){
+      techBloqueado.add(r.Tecnico);
+      return;
+    }
+
+    // Bloquear si tiene FINALIZADO dentro del tramo en curso (ya tiene producción en este tramo)
+    if(e2 === 'FINALIZADO' && tramoEnCurso(r.Tramo)){
       techBloqueado.add(r.Tecnico);
     }
   });
+
+  // Regla adicional >= 18:00: si el técnico tiene al menos 1 FINALIZADO en cualquier tramo → bloquear
+  if(esTerceTramoTardio){
+    Object.keys(techFinalizadoCount).forEach(tecnico => {
+      if(techFinalizadoCount[tecnico] >= 1) techBloqueado.add(tecnico);
+    });
+  }
 
   const freeTechs = Object.keys(techTotal)
     .filter(t =>
