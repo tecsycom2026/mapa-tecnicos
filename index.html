@@ -256,9 +256,9 @@
       background: #fff;
       border-radius: 14px;
       box-shadow: 0 8px 40px rgba(0,0,0,0.35);
-      width: 92vw;
-      max-width: 860px;
-      max-height: 88vh;
+      width: 96vw;
+      max-width: 980px;
+      max-height: 90vh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -3207,63 +3207,76 @@ if(localStorage.getItem('showTooltips')===null)localStorage.setItem('showTooltip
     const container = document.getElementById('sim-zone-config');
     if(!container) return;
 
-    const ZONE_COLORS_BG = ['#f3e8ff','#fce4ec','#fff3e0','#e8f5e9','#e3f2fd','#fafafa'];
-    const ZONE_COLORS_BD = ['#d0b3ff','#f48fb1','#ffcc80','#a5d6a7','#90caf9','#ccc'];
+    const ZONE_COLORS_BG = ['#f3e8ff','#fce4ec','#fff3e0','#e8f5e9','#e3f2fd','#fffde7'];
+    const ZONE_COLORS_BD = ['#b388ff','#f48fb1','#ffcc80','#a5d6a7','#90caf9','#fff176'];
+    const ZONE_COLORS_HDR= ['#6f42c1','#c2185b','#e65100','#2e7d32','#1565c0','#f9a825'];
 
     const renderZoneBox = (zona, isUnassigned) => {
       const zIdx = zoneNames.indexOf(zona);
-      const bg = isUnassigned ? '#f8f9fa' : (ZONE_COLORS_BG[zIdx % ZONE_COLORS_BG.length]);
-      const bd = isUnassigned ? '#dee2e6' : (ZONE_COLORS_BD[zIdx % ZONE_COLORS_BD.length]);
+      const bg  = isUnassigned ? '#f0f4f8' : ZONE_COLORS_BG[zIdx % ZONE_COLORS_BG.length];
+      const bd  = isUnassigned ? '#b0bec5' : ZONE_COLORS_BD[zIdx % ZONE_COLORS_BD.length];
+      const hdr = isUnassigned ? '#546e7a' : ZONE_COLORS_HDR[zIdx % ZONE_COLORS_HDR.length];
       const techs = isUnassigned ? unassigned : (cfg[zona]||[]);
+      const ordCount = isUnassigned ? '' : allRecords.filter(r=>techs.includes(r.Tecnico)).length;
       return `
-        <div class="sim-zone-col" data-zona="${zona}" style="min-width:155px;max-width:210px;flex:1;
-          background:${bg};border:2px solid ${bd};border-radius:9px;padding:8px;font-size:12px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-            <strong style="color:${isUnassigned?'#888':'#4b0082'};font-size:12px;">
+        <div class="sim-zone-col" data-zona="${zona}"
+          style="width:100%;background:${bg};border:2px solid ${bd};border-radius:10px;overflow:hidden;margin-bottom:4px;">
+          <div style="background:${hdr};color:#fff;padding:7px 10px;display:flex;align-items:center;justify-content:space-between;gap:6px;">
+            <span style="font-weight:bold;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
               ${isUnassigned?'🔵 Sin zona asignada':'🗺 '+zona}
-            </strong>
-            ${!isUnassigned?`<button data-delzona="${zona}" title="Eliminar zona"
-              style="border:none;background:transparent;color:#dc3545;cursor:pointer;font-size:12px;padding:0 2px;">✕</button>`:''}
+            </span>
+            <span style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+              ${!isUnassigned?`<span style="font-size:11px;background:rgba(255,255,255,0.25);border-radius:10px;padding:1px 7px;">${techs.length} téc · ${ordCount} órd</span>`:''}
+              ${!isUnassigned?`<button data-delzona="${zona}" title="Eliminar zona"
+                style="border:none;background:rgba(255,255,255,0.2);color:#fff;border-radius:5px;
+                cursor:pointer;font-size:12px;padding:1px 6px;line-height:1.4;">✕</button>`:''}
+            </span>
           </div>
-          ${!isUnassigned?`<div style="font-size:10px;color:#888;margin-bottom:4px;">
-            ${techs.length} técnico${techs.length!==1?'s':''} · ${
-              allRecords.filter(r=>techs.includes(r.Tecnico)).length
-            } órdenes</div>`:''}
-          <div class="sim-zone-drop" data-zona="${zona}" style="
-            min-height:50px;border:1px dashed ${bd};border-radius:6px;padding:4px;
-            background:rgba(255,255,255,0.6);">
+          <div class="sim-zone-drop" data-zona="${zona}"
+            style="min-height:44px;padding:6px;background:rgba(255,255,255,0.55);border-top:1px dashed ${bd};">
             ${techs.map(t=>`
               <div class="sim-tech-chip" draggable="true" data-tech="${t}" data-zona="${zona}"
-                style="display:flex;align-items:center;justify-content:space-between;
-                background:${isUnassigned?'#e9ecef':bg};
-                border:1px solid ${bd};border-radius:5px;padding:3px 5px;margin-bottom:3px;
-                cursor:grab;font-size:11px;gap:4px;">
-                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">👷 ${t}</span>
+                style="display:flex;align-items:center;gap:6px;
+                background:#fff;border:1px solid ${bd};border-radius:6px;
+                padding:5px 8px;margin-bottom:4px;cursor:grab;
+                box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+                <span style="font-size:13px;">👷</span>
+                <span style="flex:1;font-size:12px;font-weight:600;color:#222;
+                  white-space:normal;word-break:break-word;line-height:1.3;">${t}</span>
                 <select class="sim-tech-zone-sel" data-tech="${t}"
-                  style="font-size:10px;border:1px solid ${bd};border-radius:3px;
-                  background:#fff;cursor:pointer;max-width:75px;padding:1px;">
+                  title="Mover a zona"
+                  style="font-size:11px;border:1px solid ${bd};border-radius:4px;
+                  background:#f8f9fa;cursor:pointer;padding:2px 4px;flex-shrink:0;
+                  max-width:110px;min-width:80px;">
                   <option value="__none__" ${isUnassigned?'selected':''}>— sin zona</option>
                   ${zoneNames.map(z=>`<option value="${z}" ${(!isUnassigned&&z===zona)?'selected':''}>${z}</option>`).join('')}
                 </select>
               </div>`).join('')}
-            ${techs.length===0?`<div style="color:#bbb;font-size:11px;text-align:center;padding:8px 0;">Arrastra técnicos aquí</div>`:''}
+            ${techs.length===0?`<div style="color:#aaa;font-size:11px;text-align:center;padding:10px 0;font-style:italic;">
+              Arrastra técnicos aquí o usa el selector ↑</div>`:''}
           </div>
         </div>`;
     };
 
     container.innerHTML = `
-      <div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <span style="font-weight:bold;font-size:13px;">⚙️ Asignar técnicos a zonas de simulación</span>
-        <button id="sim-add-zone" style="font-size:11px;padding:2px 8px;border:1px solid #6f42c1;
-          border-radius:5px;background:#f5f0ff;color:#6f42c1;cursor:pointer;">+ Nueva zona</button>
-        <button id="sim-save-zones" style="font-size:11px;padding:3px 10px;border:1px solid #28a745;
-          border-radius:5px;background:#d4edda;color:#155724;cursor:pointer;font-weight:bold;">💾 Guardar zonas</button>
-        <span id="sim-save-ok" style="font-size:11px;color:#28a745;display:none;">✓ Guardado</span>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+        <strong style="font-size:13px;">⚙️ Zonas de simulación</strong>
+        <button id="sim-add-zone"
+          style="font-size:12px;padding:3px 10px;border:1px solid #6f42c1;
+          border-radius:6px;background:#f5f0ff;color:#6f42c1;cursor:pointer;font-weight:bold;">+ Nueva zona</button>
+        <button id="sim-save-zones"
+          style="font-size:12px;padding:4px 12px;border:1px solid #28a745;
+          border-radius:6px;background:#d4edda;color:#155724;cursor:pointer;font-weight:bold;">💾 Guardar</button>
+        <span id="sim-save-ok" style="font-size:12px;color:#28a745;display:none;font-weight:bold;">✓ Guardado</span>
       </div>
-      <p style="font-size:11px;color:#888;margin-bottom:10px;">
-        Arrastra los chips de técnicos entre zonas, o usa el selector desplegable. La simulación solo redistribuirá órdenes <strong>dentro de cada zona</strong>.
+      <p style="font-size:11px;color:#777;margin-bottom:10px;line-height:1.5;">
+        Usa el <strong>selector desplegable</strong> en cada técnico para moverlo a una zona, o <strong>arrástralo</strong> con el mouse.
+        La simulación solo redistribuirá órdenes <em>dentro de la misma zona</em>.
       </p>
-      <div id="sim-zones-grid" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start;">
+      <div id="sim-zones-grid" style="
+        display:grid;
+        grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+        gap:10px;align-items:start;">
         ${zoneNames.map(z=>renderZoneBox(z, false)).join('')}
         ${renderZoneBox('__unassigned__', true)}
       </div>`;
