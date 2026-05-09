@@ -3057,7 +3057,10 @@ if(localStorage.getItem('showTooltips')===null)localStorage.setItem('showTooltip
   function runSimulation(){
     const cfg          = getOrInitZones();
     const EXCLUIR_NEG  = ['GARANTÍA','GARANTIA'];
-    const ESTADOS_SIM  = ['PROGRAMADO','COORDINADO'];
+    // Estados que hacen a una orden "activa" (técnico ocupado en ese tramo)
+    const ESTADOS_ACTIVOS = ['PROGRAMADO','COORDINADO','EN CAMINO','EN PROCESO'];
+    // Solo estas órdenes son candidatas a ser reasignadas
+    const ESTADOS_REASIG  = ['PROGRAMADO','COORDINADO'];
 
     // Mapa técnico → zona configurada
     const techToZone = {};
@@ -3065,27 +3068,51 @@ if(localStorage.getItem('showTooltips')===null)localStorage.setItem('showTooltip
       (techs||[]).forEach(t=>{ techToZone[t] = zona; });
     });
 
-    // ── Candidatos: solo órdenes PROGRAMADO/COORDINADO con coords, sin GARANTÍA
-    const candidates = allRecords.filter(r=>{
+    // ── Órdenes reasignables: PROGRAMADO o COORDINADO, con coords, sin GARANTÍA
+    const reasignables = allRecords.filter(r=>{
       if(!r.Tecnico || !r.latitud_Y || !r.longitud_X) return false;
       if(EXCLUIR_NEG.includes(String(r.Negocio||'').trim().toUpperCase())) return false;
-      const est = String(r.Estado2||'').trim().toUpperCase();
-      return ESTADOS_SIM.includes(est);
+      return ESTADOS_REASIG.includes(String(r.Estado2||'').trim().toUpperCase());
     });
 
-    if(!candidates.length) return {proposals:[], stats:{total:0,techs:0,reass:0,byTramo:{},tramosDetectados:[]}};
+    if(!reasignables.length) return {proposals:[], stats:{total:0,techs:0,reass:0,byTramo:{},tramosDetectados:[]}};
 
-    // ── Detectar tramos que REALMENTE existen en los datos filtrados (opción 2)
+    // ── Detectar tramos que REALMENTE existen en las órdenes reasignables (opción 2)
     const tramosDetectados = [...new Set(
-      candidates.map(r=>simNormTramo(r.Tramo)).filter(Boolean)
+      reasignables.map(r=>simNormTramo(r.Tramo)).filter(Boolean)
     )].sort((a,b)=>{
       const ord=['8/12','12/16','16/20'];
       return (ord.indexOf(a)||99)-(ord.indexOf(b)||99);
     });
 
-    // ── Agrupar: clave = zona + ||| + tramo
+    // ── Carga real por técnico+tramo: cuenta TODAS las órdenes activas
+    //    (incluye EN CAMINO y EN PROCESO para saber si el técnico está libre)
+    const cargaReal = {}; // cargaReal[tramo][tecnico] = cantidad de órdenes activas
+    allRecords.forEach(r=>{
+      if(!r.Tecnico || EXCLUIR_NEG.includes(String(r.Negocio||'').trim().toUpperCase())) return;
+      const est   = String(r.Estado2||'').trim().toUpperCase();
+      if(!ESTADOS_ACTIVOS.includes(est)) return;
+      const tramo = simNormTramo(r.Tramo) || '(sin tramo)';
+      if(!cargaReal[tramo]) cargaReal[tramo] = {};
+      cargaReal[tramo][r.Tecnico] = (cargaReal[tramo][r.Tecnico]||0) + 1;
+    });
+
+    // ── Centroide global por técnico (todas sus órdenes con coords)
+    const byTechAll = {};
+    allRecords.filter(r=>r.Tecnico&&r.latitud_Y&&r.longitud_X).forEach(r=>{
+      (byTechAll[r.Tecnico]=byTechAll[r.Tecnico]||[]).push(r);
+    });
+    const centroideGlobal = {};
+    Object.entries(byTechAll).forEach(([t,ords])=>{
+      centroideGlobal[t]={
+        lat:ords.reduce((s,r)=>s+parseFloat(r.latitud_Y),0)/ords.length,
+        lng:ords.reduce((s,r)=>s+parseFloat(r.longitud_X),0)/ords.length
+      };
+    });
+
+    // ── Agrupar órdenes REASIGNABLES por zona+tramo
     const byZonaTramo = {};
-    candidates.forEach(r=>{
+    reasignables.forEach(r=>{
       const zona  = techToZone[r.Tecnico] || '(sin zona asignada)';
       const tramo = simNormTramo(r.Tramo)  || '(sin tramo)';
       const key   = zona+'|||'+tramo;
@@ -3097,54 +3124,75 @@ if(localStorage.getItem('showTooltips')===null)localStorage.setItem('showTooltip
     const allProposals = [];
     const byTramoCount = {};
 
-    Object.entries(byZonaTramo).forEach(([key, techMap])=>{
+    Object.entries(byZonaTramo).forEach(([key, techConOrdenes])=>{
       const [zona, tramo] = key.split('|||');
-      const techNames = Object.keys(techMap);
-      if(techNames.length < 2) return;   // necesitamos ≥ 2 técnicos para redistribuir
 
-      const total  = techNames.reduce((s,t)=>s+techMap[t].length, 0);
-      const ideal  = Math.round(total / techNames.length);
-      const umbral = Math.max(1, Math.round(ideal * 0.20));
+      // Técnicos configurados en esta zona
+      const techsDeLaZona = Object.keys(cfg).includes(zona)
+        ? (cfg[zona]||[])
+        : Object.keys(techConOrdenes);
 
-      // Centroide por técnico (solo órdenes de este tramo)
-      const centroids = {};
-      techNames.forEach(t=>{
-        const ords=techMap[t];
-        centroids[t]={
-          lat:ords.reduce((s,r)=>s+parseFloat(r.latitud_Y),0)/ords.length,
-          lng:ords.reduce((s,r)=>s+parseFloat(r.longitud_X),0)/ords.length
-        };
-      });
+      if(techsDeLaZona.length < 2) return;
 
-      const load     = {};
-      techNames.forEach(t=>load[t]=techMap[t].length);
-      const loadCopy = {...load};
+      // Carga real de CADA técnico de la zona en este tramo (0 si está libre)
+      const cargaTramo = cargaReal[tramo] || {};
+      const loadReal   = {};
+      techsDeLaZona.forEach(t=>{ loadReal[t] = cargaTramo[t]||0; });
 
-      const sobre = techNames.filter(t=>loadCopy[t]>ideal+umbral).sort((a,b)=>loadCopy[b]-loadCopy[a]);
-      const desc  = techNames.filter(t=>loadCopy[t]<ideal-umbral).sort((a,b)=>loadCopy[a]-loadCopy[b]);
+      // Total de órdenes reasignables en este zona+tramo
+      const totalReasig = Object.values(techConOrdenes).reduce((s,a)=>s+a.length,0);
+      if(totalReasig===0) return;
+
+      // Ideal: distribuir equitativamente entre todos los técnicos de la zona
+      const ideal = Math.round(
+        Object.values(loadReal).reduce((s,v)=>s+v,0) / techsDeLaZona.length
+      );
+      // Umbral mínimo: cualquiera con ≥2 órdenes cuando hay libres es candidato a ceder
+      const umbral = Math.max(1, ideal);
+
+      // Sobrecargados: tienen más del ideal en este tramo (mínimo 2 órdenes)
+      const sobre = techsDeLaZona
+        .filter(t=>loadReal[t] > Math.max(umbral,1))
+        .sort((a,b)=>loadReal[b]-loadReal[a]);
+
+      // Libres o poco cargados: tienen menos del ideal (incluyendo 0 = libres)
+      const libres = techsDeLaZona
+        .filter(t=>loadReal[t] < Math.max(umbral,1))
+        .sort((a,b)=>loadReal[a]-loadReal[b]);
+
+      if(!sobre.length || !libres.length) return;
+
+      const loadCopy = {...loadReal};
 
       sobre.forEach(fromTech=>{
-        const excess = loadCopy[fromTech]-ideal;
+        const ordenes = techConOrdenes[fromTech]||[];
+        if(!ordenes.length) return;
+        const excess = loadCopy[fromTech] - Math.max(ideal,1);
         if(excess<=0) return;
-        const ords=[...techMap[fromTech]];
+
         let reassigned=0;
-        for(let i=0; i<ords.length && reassigned<excess; i++){
-          const ord=ords[i];
+        for(let i=0; i<ordenes.length && reassigned<excess; i++){
+          const ord=ordenes[i];
+          const oLat=parseFloat(ord.latitud_Y), oLng=parseFloat(ord.longitud_X);
+
+          // Buscar el técnico libre/menos cargado MÁS CERCANO a la orden
           let bestTech=null,bestDist=Infinity;
-          desc.forEach(toTech=>{
-            if(loadCopy[toTech]>=ideal||toTech===fromTech) return;
-            const d=haversineDistance(
-              parseFloat(ord.latitud_Y),parseFloat(ord.longitud_X),
-              centroids[toTech].lat,centroids[toTech].lng
-            );
+          libres.forEach(toTech=>{
+            if(loadCopy[toTech]>=Math.max(ideal,1)||toTech===fromTech) return;
+            // Usar centroide global del técnico (o la orden misma si no tiene centroide)
+            const cen = centroideGlobal[toTech] || {lat:oLat,lng:oLng};
+            const d   = haversineDistance(oLat,oLng,cen.lat,cen.lng);
             if(d<bestDist){bestDist=d;bestTech=toTech;}
           });
           if(!bestTech) break;
+
           allProposals.push({
             ord,fromTech,toTech:bestTech,
             distMeters:bestDist,
-            fromLoad:load[fromTech],toLoad:load[bestTech],
-            zona,tramo,idealTramo:ideal
+            fromLoad:loadReal[fromTech],
+            toLoad:loadReal[bestTech],
+            zona,tramo,idealTramo:ideal,
+            isLibre: loadReal[bestTech]===0
           });
           loadCopy[fromTech]--;
           loadCopy[bestTech]++;
@@ -3153,15 +3201,15 @@ if(localStorage.getItem('showTooltips')===null)localStorage.setItem('showTooltip
       });
 
       if(!byTramoCount[tramo]) byTramoCount[tramo]={orders:0,reass:0};
-      byTramoCount[tramo].orders+=total;
+      byTramoCount[tramo].orders+=totalReasig;
     });
 
     allProposals.forEach(p=>{ if(byTramoCount[p.tramo]) byTramoCount[p.tramo].reass++; });
 
-    const totalTechs=[...new Set(candidates.map(r=>r.Tecnico))].length;
+    const totalTechs=[...new Set(reasignables.map(r=>r.Tecnico))].length;
     return {
       proposals:allProposals,
-      stats:{total:candidates.length,techs:totalTechs,reass:allProposals.length,byTramo:byTramoCount,tramosDetectados}
+      stats:{total:reasignables.length,techs:totalTechs,reass:allProposals.length,byTramo:byTramoCount,tramosDetectados}
     };
   }
 
@@ -3280,7 +3328,9 @@ if(localStorage.getItem('showTooltips')===null)localStorage.setItem('showTooltip
                 <small class="sim-dist">${p.fromLoad} en tramo</small></td>
               <td class="sim-arrow">→</td>
               <td><span class="sim-badge-to">${p.toTech}</span><br>
-                <small class="sim-dist">${p.toLoad} en tramo</small></td>
+                <small class="sim-dist">${p.isLibre
+                  ? '<span style="background:#198754;color:#fff;border-radius:8px;padding:1px 6px;font-size:10px;font-weight:bold;">✓ LIBRE</span>'
+                  : p.toLoad+' en tramo'}</small></td>
               <td class="sim-dist">${fmtDist(p.distMeters)}</td>`;
             tbody.appendChild(tr);
           });
