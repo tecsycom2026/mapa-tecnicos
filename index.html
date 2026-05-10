@@ -2985,70 +2985,79 @@ if(localStorage.getItem('showTooltips')===null)localStorage.setItem('showTooltip
   // ══════════════════════════════════════════════════════════════════════════
   const SIM_TABLE = 'sim_zone_config';
 
+  // ── Caché en memoria ──────────────────────────────────────────────────────
+  let _zoneCache = null;
+
   // ── Guardar en Supabase ───────────────────────────────────────────────────
-  async function saveZonesToSupabase(cfg){
+  async function saveTechZones(cfg){
+    // 1. Actualizar caché inmediatamente
+    _zoneCache = cfg;
+
+    // 2. Intentar guardar en Supabase
     try{
-      const { error } = await sb.from(SIM_TABLE).upsert({
-        id: 'global',
-        data: cfg,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'id' });
-      if(error){
-        console.warn('[SimZones] Supabase save error:', error.message);
-        return false;
+      // Primero intentar UPDATE (la fila ya existe)
+      const { data: existing } = await sb
+        .from(SIM_TABLE).select('id').eq('id','global').maybeSingle();
+
+      let error;
+      if(existing){
+        // Fila existe → UPDATE
+        const res = await sb.from(SIM_TABLE)
+          .update({ data: cfg, updated_at: new Date().toISOString() })
+          .eq('id','global');
+        error = res.error;
+      } else {
+        // Fila no existe → INSERT
+        const res = await sb.from(SIM_TABLE)
+          .insert({ id:'global', data: cfg, updated_at: new Date().toISOString() });
+        error = res.error;
       }
-      console.log('[SimZones] Guardado en Supabase OK:', Object.keys(cfg));
-      return true;
+
+      if(error){
+        console.error('[SimZones] Error al guardar:', error.message, error);
+        return { ok: false, msg: error.message };
+      }
+      console.log('[SimZones] ✅ Guardado en Supabase:', JSON.stringify(cfg));
+      return { ok: true };
     } catch(e){
-      console.warn('[SimZones] save exception:', e);
-      return false;
+      console.error('[SimZones] Excepción al guardar:', e);
+      return { ok: false, msg: String(e) };
     }
   }
 
-  // ── Cargar desde Supabase (SIEMPRE consulta la BD, sin caché) ────────────
-  async function loadZonesFromSupabase(){
+  // ── Cargar desde Supabase ─────────────────────────────────────────────────
+  async function loadZonesFresh(){
     try{
       const { data, error } = await sb
         .from(SIM_TABLE)
         .select('data')
         .eq('id','global')
-        .single();
+        .maybeSingle();
+
       if(error){
-        console.warn('[SimZones] load error:', error.message);
-        return null;
+        console.error('[SimZones] Error al cargar:', error.message);
+        _zoneCache = {};
+        return {};
       }
       const cfg = data?.data;
-      if(cfg && typeof cfg === 'object' && Object.keys(cfg).length > 0){
-        console.log('[SimZones] Cargado desde Supabase:', Object.keys(cfg));
+      if(cfg && typeof cfg === 'object'){
+        console.log('[SimZones] ✅ Cargado desde Supabase:', JSON.stringify(cfg));
+        _zoneCache = cfg;
         return cfg;
       }
-      return null;
+      console.log('[SimZones] Sin datos en Supabase — empezando vacío');
+      _zoneCache = {};
+      return {};
     } catch(e){
-      console.warn('[SimZones] load exception:', e);
-      return null;
+      console.error('[SimZones] Excepción al cargar:', e);
+      _zoneCache = {};
+      return {};
     }
   }
 
-  // ── Caché en memoria (solo para operaciones síncronas intermedias) ────────
-  let _zoneCache = null;
-
-  // Carga fresca desde Supabase — siempre consulta la BD
-  async function loadZonesFresh(){
-    const remote = await loadZonesFromSupabase();
-    _zoneCache = (remote && typeof remote === 'object') ? remote : {};
-    return _zoneCache;
-  }
-
-  // Versión síncrona: usa caché si está disponible (se llena tras loadZonesFresh)
+  // Versión síncrona — usa caché cargado por loadZonesFresh()
   function getOrInitZones(){
     return _zoneCache || {};
-  }
-
-  // Guardar: actualiza caché Y Supabase
-  async function saveTechZones(cfg){
-    _zoneCache = cfg;
-    const ok = await saveZonesToSupabase(cfg);
-    return ok;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -3510,23 +3519,43 @@ if(localStorage.getItem('showTooltips')===null)localStorage.setItem('showTooltip
 
     // ── Guardar en Supabase
     document.getElementById('sim-save-zones')?.addEventListener('click', async ()=>{
-      const btn=document.getElementById('sim-save-zones');
-      const ok=document.getElementById('sim-save-ok');
-      btn.disabled=true;
-      btn.innerHTML='<i class="fas fa-spinner fa-spin me-1"></i> Guardando...';
-      const newCfg={};
-      container.querySelectorAll('.sim-zone-col:not([data-zona="__unassigned__"])').forEach(col=>{
-        const zona=col.dataset.zona;
-        newCfg[zona]=[];
-        col.querySelectorAll('.sim-tech-chip').forEach(chip=>newCfg[zona].push(chip.dataset.tech));
+      const saveBtn = document.getElementById('sim-save-zones');
+      const okEl    = document.getElementById('sim-save-ok');
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Guardando...';
+
+      // Leer la config directamente desde el DOM (siempre fresco)
+      const newCfg = {};
+      document.querySelectorAll('#sim-zones-grid .sim-zone-col:not([data-zona="__unassigned__"])').forEach(col=>{
+        const zona = col.dataset.zona;
+        if(!zona) return;
+        newCfg[zona] = [];
+        col.querySelectorAll('.sim-tech-chip[data-tech]').forEach(chip=>{
+          if(chip.dataset.tech) newCfg[zona].push(chip.dataset.tech);
+        });
       });
-      await saveTechZones(newCfg);
-      btn.disabled=false;
-      btn.innerHTML='💾 Guardar en Supabase';
-      if(ok){
-        ok.textContent='✓ Guardado en Supabase';
-        ok.style.display='inline';
-        setTimeout(()=>ok.style.display='none',3000);
+
+      console.log('[SimZones] Guardando cfg:', JSON.stringify(newCfg));
+      const result = await saveTechZones(newCfg);
+
+      saveBtn.disabled = false;
+      if(result.ok){
+        saveBtn.innerHTML = '💾 Guardar en Supabase';
+        if(okEl){
+          okEl.style.color = '#28a745';
+          okEl.textContent = '✓ Guardado correctamente';
+          okEl.style.display = 'inline';
+          setTimeout(()=>okEl.style.display='none', 3000);
+        }
+      } else {
+        saveBtn.innerHTML = '💾 Guardar en Supabase';
+        if(okEl){
+          okEl.style.color = '#dc3545';
+          okEl.textContent = '✗ Error: ' + (result.msg||'ver consola');
+          okEl.style.display = 'inline';
+          setTimeout(()=>okEl.style.display='none', 6000);
+        }
+        alert('❌ No se pudo guardar en Supabase.\n\nVerifica:\n1. Que la tabla sim_zone_config existe\n2. Que tiene las columnas: id (text PK), data (jsonb), updated_at (timestamptz)\n3. Que RLS está desactivado\n\nError: ' + (result.msg||'desconocido'));
       }
       renderZoneConfig();
     });
@@ -3537,7 +3566,8 @@ if(localStorage.getItem('showTooltips')===null)localStorage.setItem('showTooltip
       if(!name||!name.trim()) return;
       const c=getOrInitZones();
       if(!c[name.trim()]) c[name.trim()]=[];
-      await saveTechZones(c);
+      const r=await saveTechZones(c);
+      if(!r.ok) console.error('[SimZones] Error al crear zona:', r.msg);
       renderZoneConfig();
     });
 
