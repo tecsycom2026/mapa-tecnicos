@@ -1635,7 +1635,7 @@ async function renderRouteTraces() {
 
     const distIcon = L.divIcon({
       className: 'route-dist-label',
-      html: `<span style="display:inline-block;background:#e63900;color:#fff;font-size:12px;font-weight:800;padding:3px 9px;border-radius:12px;border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.55);white-space:nowrap;">🚗 ${distLabel}</span>`,
+      html: `<span style="display:inline-block;background:#ffbf00;color:#fff;font-size:12px;font-weight:800;padding:3px 9px;border-radius:12px;border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.55);white-space:nowrap;">🚗 ${distLabel}</span>`,
       iconSize:   [1, 1],
       iconAnchor: [0, 0]
     });
@@ -1643,7 +1643,7 @@ async function renderRouteTraces() {
       icon:         distIcon,
       zIndexOffset: 700
     }).addTo(map);
-    distMarker.bindPopup(`<b>Distancia del segmento</b><br><b style="color:#e63900;font-size:14px;">${distLabel}</b><br>Técnico: ${tec}<br>Tramo: ${tramoLabel}`);
+    distMarker.bindPopup(`<b>Distancia del segmento</b><br><b style="color:#ffbf00;font-size:14px;">${distLabel}</b><br>Técnico: ${tec}<br>Tramo: ${tramoLabel}`);
     routeTraceLines.push(distMarker);
     // ─────────────────────────────────────────────────────────────────────
 
