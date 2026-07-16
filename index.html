@@ -1574,17 +1574,89 @@ function isTecSimVisible(){
   return localStorage.getItem('showTecSim')!=='false'; // visible por defecto
 }
 
+// ── Ruta real por calles para la simulación de posición de técnicos (Ubi_TEC) ──
+//    Usa OSRM (mismo servicio del "Trazo Ruta") con su propio caché/cola,
+//    independiente del feature de Trazo para no afectarlo. Si falla, cae a línea recta.
+if (!window._tecRouteCache) window._tecRouteCache = {};
+if (!window._tecRouteQueue) { window._tecRouteQueue = []; window._tecRouteRunning = false; }
+
+function _tecEncolarRuta(fn) {
+  return new Promise((resolve, reject) => {
+    window._tecRouteQueue.push({ fn, resolve, reject });
+    if (!window._tecRouteRunning) _tecProcesarColaRutas();
+  });
+}
+async function _tecProcesarColaRutas() {
+  if (!window._tecRouteQueue.length) { window._tecRouteRunning = false; return; }
+  window._tecRouteRunning = true;
+  const { fn, resolve, reject } = window._tecRouteQueue.shift();
+  try { resolve(await fn()); } catch(e) { reject(e); }
+  setTimeout(_tecProcesarColaRutas, 400);
+}
+async function obtenerRutaCallesTec(lat1, lng1, lat2, lng2) {
+  const cacheKey = `${lat1.toFixed(5)},${lng1.toFixed(5)}-${lat2.toFixed(5)},${lng2.toFixed(5)}`;
+  if (window._tecRouteCache[cacheKey]) return window._tecRouteCache[cacheKey];
+  return _tecEncolarRuta(async () => {
+    try {
+      const url = `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson`;
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      const data = await res.json();
+      if (data.code === 'Ok' && data.routes?.[0]?.geometry?.coordinates?.length > 1) {
+        const latlngs = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+        window._tecRouteCache[cacheKey] = latlngs;
+        return latlngs;
+      }
+      throw new Error('OSRM sin ruta válida: ' + data.code);
+    } catch(e) {
+      console.warn('[SimTec] OSRM falló, usando línea recta:', e.message);
+      const fallback = [[lat1, lng1], [lat2, lng2]];
+      window._tecRouteCache[cacheKey] = fallback;
+      return fallback;
+    }
+  });
+}
+
+// ── Interpolar una posición a lo largo de un trazo (array de [lat,lng]) según t (0 a 1) ──
+function positionAlongPath(latlngs, t) {
+  if (!latlngs || latlngs.length === 0) return null;
+  if (latlngs.length === 1) return latlngs[0];
+  if (t <= 0) return latlngs[0];
+  if (t >= 1) return latlngs[latlngs.length - 1];
+  const segLens = []; let total = 0;
+  for (let i = 0; i < latlngs.length - 1; i++) {
+    const d = haversineDistance(latlngs[i][0], latlngs[i][1], latlngs[i+1][0], latlngs[i+1][1]);
+    segLens.push(d); total += d;
+  }
+  if (total === 0) return latlngs[0];
+  const target = total * t; let acc = 0;
+  for (let i = 0; i < segLens.length; i++) {
+    if (acc + segLens[i] >= target) {
+      const segT = segLens[i] === 0 ? 0 : (target - acc) / segLens[i];
+      const lat = latlngs[i][0] + (latlngs[i+1][0] - latlngs[i][0]) * segT;
+      const lng = latlngs[i][1] + (latlngs[i+1][1] - latlngs[i][1]) * segT;
+      return [lat, lng];
+    }
+    acc += segLens[i];
+  }
+  return latlngs[latlngs.length - 1];
+}
+
 function startTecCarAnimation(carMarker, startLat, startLng, endLat, endLng){
-  const state={cancelled:false, timer:null};
+  const state={cancelled:false, timer:null, routePoints:[[startLat,startLng],[endLat,endLng]]};
   tecSimAnimations.push(state);
-  const colorInicio=[220,53,69];   // rojo  #dc3545 (minuto 0 de la hora → recién sale de Ubi_TEC)
-  const colorFin=[40,167,69];      // verde #28a745 (minuto 60 de la hora → llega al destino)
+  const colorInicio=[26,115,232];  // azul  #1a73e8 (minuto 0 de la hora → recién sale de Ubi_TEC)
+  const colorFin=[220,53,69];      // rojo  #dc3545 (minuto 60 de la hora → llega al destino)
   function lerpColor(t){
     const r=Math.round(colorInicio[0]+(colorFin[0]-colorInicio[0])*t);
     const g=Math.round(colorInicio[1]+(colorFin[1]-colorInicio[1])*t);
     const b=Math.round(colorInicio[2]+(colorFin[2]-colorInicio[2])*t);
     return `rgb(${r},${g},${b})`;
   }
+  // Mientras llega la ruta real por calles, se anima en línea recta como respaldo;
+  // en cuanto OSRM responde, el trayecto pasa a seguir el trazo de las calles.
+  obtenerRutaCallesTec(startLat, startLng, endLat, endLng).then(latlngs=>{
+    if(!state.cancelled && latlngs && latlngs.length>1) state.routePoints=latlngs;
+  }).catch(()=>{});
   // El progreso del trayecto se calcula con la hora real del sistema (minutos+segundos
   // dentro de la hora en curso), NO desde que se dibujó el marcador. Así el técnico
   // avanza de Ubi_TEC hacia el destino a lo largo de 1 hora real y se refleja
@@ -1594,9 +1666,8 @@ function startTecCarAnimation(carMarker, startLat, startLng, endLat, endLng){
     if(!map || !map.hasLayer(carMarker)) return;
     const now=new Date();
     const t=Math.min((now.getMinutes()*60+now.getSeconds())/3600, 1); // 0 al inicio de la hora, 1 al final
-    const curLat=startLat+(endLat-startLat)*t;
-    const curLng=startLng+(endLng-startLng)*t;
-    carMarker.setLatLng([curLat,curLng]);
+    const pos=positionAlongPath(state.routePoints, t);
+    if(pos) carMarker.setLatLng(pos);
     const el=carMarker.getElement();
     const pin=el?el.querySelector('.tec-car-pin'):null;
     if(pin) pin.style.background=lerpColor(t);
