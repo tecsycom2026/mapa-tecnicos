@@ -67,6 +67,8 @@
     @keyframes garantiaPulse { 0%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(1.3)} 100%{opacity:1;transform:scale(1)} }
     @keyframes tecCarPulse { 0%{transform:scale(1)} 50%{transform:scale(1.12)} 100%{transform:scale(1)} }
     .tec-car-pin { width:28px; height:28px; border-radius:50%; background:#1a73e8; color:#fff; display:flex; align-items:center; justify-content:center; font-size:14px; box-shadow:0 2px 8px rgba(0,0,0,.35); border:2px solid #fff; animation:tecCarPulse 1.4s ease-in-out infinite; }
+    .tec-start-pin { width:20px; height:20px; border-radius:50% 50% 50% 0; transform:rotate(-45deg); background:#495057; color:#fff; display:flex; align-items:center; justify-content:center; font-size:10px; box-shadow:0 1px 4px rgba(0,0,0,.4); border:1.5px solid #fff; }
+    .tec-start-pin i { transform:rotate(45deg); }
 
     /* ── Barra de herramientas inferior centrada ── */
     #map-toolbar {
@@ -1526,6 +1528,14 @@ function renderMarkersFromRecords(records) {
         markers.push(carMarker);
         // Si va "EN CAMINO", simular el desplazamiento del técnico desde Ubi_TEC hacia el destino del cliente
         if(estado2Norm==='EN CAMINO' && !isNaN(lat) && !isNaN(lng)){
+          // Marca fija del punto de partida (Ubi_TEC), para que se siga viendo de dónde salió el técnico
+          const startMarker=L.marker([ubiLat,ubiLng],{
+            icon:L.divIcon({className:'',html:'<div class="tec-start-pin"><i class="fas fa-flag"></i></div>',iconSize:[20,20],iconAnchor:[10,20]}),
+            zIndexOffset:750
+          }).addTo(map);
+          startMarker.bindTooltip(`Inicio del trayecto · ${record.Tecnico||'Técnico'}`,{direction:'top',offset:[0,-16]});
+          startMarker.on('click',()=>showRecordDetails(record));
+          markers.push(startMarker);
           startTecCarAnimation(carMarker, ubiLat, ubiLng, parseFloat(lat), parseFloat(lng));
         }
       }
