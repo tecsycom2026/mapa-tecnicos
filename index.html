@@ -103,6 +103,7 @@
     #route-trace-btn.active  { background: #198754 !important; color: #fff !important; border-color: #198754 !important; }
     #zone-draw-btn.active    { background: #0d6efd !important; color: #fff !important; border-color: #0d6efd !important; }
     #sim-btn.active          { background: #6f42c1 !important; color: #fff !important; border-color: #6f42c1 !important; }
+    #tec-sim-toggle-btn.active { background: #1a73e8 !important; color: #fff !important; border-color: #1a73e8 !important; }
     .map-tool-separator { width: 1px; height: 24px; background: #dee2e6; margin: 0 2px; }
     /* Etiqueta distancia trazo — quitar fondo/borde que pone Leaflet */
     .route-dist-label { background: transparent !important; border: none !important; box-shadow: none !important; }
@@ -629,6 +630,10 @@
       <button id="sim-btn" class="map-tool-btn" title="Simulación de reasignación equitativa">
         <i class="fas fa-random"></i> Simulación
       </button>
+      <div class="map-tool-separator"></div>
+      <button id="tec-sim-toggle-btn" class="map-tool-btn" title="Mostrar/ocultar posición simulada de técnicos en camino">
+        <i class="fas fa-car"></i> Posición Técnicos
+      </button>
     </div>
 
     <!-- ── Modal: Punto inicio/fin manual del trazo ── -->
@@ -1053,6 +1058,7 @@ function flashRealtimeIndicator(msg) {
 
 // ─── Globals ──────────────────────────────────────────────────────────────────
 let map, markers = [], allRecords = [], techColors = {}, techImages = {}, customCoords = [];
+let tecSimAnimations = []; // banderas de cancelación de las animaciones de "carro en camino"
 let currentRecord = null, technicianList = [], countdownInterval = null;
 window.currentSuggestions = [];
 let alertsEnabled = localStorage.getItem('alertsEnabled') !== 'false';
@@ -1504,9 +1510,10 @@ function renderMarkersFromRecords(records) {
     });
     markers.push(marker);
 
-    // ── Posición simulada del técnico (Ubi_TEC): solo si Estado2 = EN CAMINO o EN PROCESO ──
+    // ── Posición simulada del técnico (Ubi_TEC): solo si Estado2 = EN CAMINO o EN PROCESO,
+    //    y solo si el usuario tiene activada esta función con el botón "Posición Técnicos" ──
     const estado2Norm=String(record.Estado2||'').trim().toUpperCase();
-    if(record.Ubi_TEC && (estado2Norm==='EN CAMINO'||estado2Norm==='EN PROCESO')){
+    if(isTecSimVisible() && record.Ubi_TEC && (estado2Norm==='EN CAMINO'||estado2Norm==='EN PROCESO')){
       const ubiParts=String(record.Ubi_TEC).split(',').map(s=>parseFloat(s.trim()));
       const ubiLat=ubiParts[0], ubiLng=ubiParts[1];
       if(!isNaN(ubiLat)&&!isNaN(ubiLng)){
@@ -1517,6 +1524,10 @@ function renderMarkersFromRecords(records) {
         carMarker.bindTooltip(`${record.Tecnico||'Técnico'} · ${record.Estado2}`,{direction:'top',offset:[0,-14]});
         carMarker.on('click',()=>showRecordDetails(record));
         markers.push(carMarker);
+        // Si va "EN CAMINO", simular el desplazamiento del técnico desde Ubi_TEC hacia el destino del cliente
+        if(estado2Norm==='EN CAMINO' && !isNaN(lat) && !isNaN(lng)){
+          startTecCarAnimation(carMarker, ubiLat, ubiLng, parseFloat(lat), parseFloat(lng));
+        }
       }
     }
   });
@@ -1550,7 +1561,62 @@ function renderMarkersFromRecords(records) {
   });
 }
 
-function clearMarkers(){markers.forEach(m=>map.removeLayer(m));markers=[];}
+function clearMarkers(){
+  markers.forEach(m=>map.removeLayer(m));
+  markers=[];
+  // Detener cualquier animación de "carro en camino" que siga corriendo
+  tecSimAnimations.forEach(a=>{a.cancelled=true; if(a.timer) clearTimeout(a.timer);});
+  tecSimAnimations=[];
+}
+
+// ── Simulación de posición de técnicos (Ubi_TEC) ──────────────────────────────
+function isTecSimVisible(){
+  return localStorage.getItem('showTecSim')!=='false'; // visible por defecto
+}
+
+function startTecCarAnimation(carMarker, startLat, startLng, endLat, endLng){
+  const state={cancelled:false, timer:null};
+  tecSimAnimations.push(state);
+  const colorInicio=[26,115,232];  // azul  #1a73e8 (minuto 0 de la hora → recién sale de Ubi_TEC)
+  const colorFin=[220,53,69];      // rojo  #dc3545 (minuto 60 de la hora → llega al destino)
+  function lerpColor(t){
+    const r=Math.round(colorInicio[0]+(colorFin[0]-colorInicio[0])*t);
+    const g=Math.round(colorInicio[1]+(colorFin[1]-colorInicio[1])*t);
+    const b=Math.round(colorInicio[2]+(colorFin[2]-colorInicio[2])*t);
+    return `rgb(${r},${g},${b})`;
+  }
+  // El progreso del trayecto se calcula con la hora real del sistema (minutos+segundos
+  // dentro de la hora en curso), NO desde que se dibujó el marcador. Así el técnico
+  // avanza de Ubi_TEC hacia el destino a lo largo de 1 hora real y se refleja
+  // aunque se recarguen filtros o se vuelva a renderizar el mapa.
+  function tick(){
+    if(state.cancelled) return;
+    if(!map || !map.hasLayer(carMarker)) return;
+    const now=new Date();
+    const t=Math.min((now.getMinutes()*60+now.getSeconds())/3600, 1); // 0 al inicio de la hora, 1 al final
+    const curLat=startLat+(endLat-startLat)*t;
+    const curLng=startLng+(endLng-startLng)*t;
+    carMarker.setLatLng([curLat,curLng]);
+    const el=carMarker.getElement();
+    const pin=el?el.querySelector('.tec-car-pin'):null;
+    if(pin) pin.style.background=lerpColor(t);
+    state.timer=setTimeout(tick,1000); // recalcular cada segundo
+  }
+  tick();
+}
+
+// ── Botón: mostrar/ocultar simulación de posición de técnicos ────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const tecSimBtn=document.getElementById('tec-sim-toggle-btn');
+  if(!tecSimBtn) return;
+  if(isTecSimVisible()) tecSimBtn.classList.add('active');
+  tecSimBtn.addEventListener('click', () => {
+    const nowVisible=!isTecSimVisible();
+    localStorage.setItem('showTecSim', nowVisible ? 'true' : 'false');
+    tecSimBtn.classList.toggle('active', nowVisible);
+    renderMarkers();
+  });
+});
 
 // ─── TRAZO DE RUTA POR TÉCNICO ────────────────────────────────────────────────
 let routeTraceEnabled = localStorage.getItem('routeTraceEnabled') === 'true';
