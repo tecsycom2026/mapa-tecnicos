@@ -1595,32 +1595,38 @@ function renderMarkersFromRecords(records) {
     }
     markers.push(marker);
 
+    // ── Marca de INICIO DE TRAYECTORIA (bandera 🚩): siempre visible para Estado2 = EN CAMINO o EN PROCESO,
+    //    independientemente del botón "Posición Técnicos" (así se comportaba en el archivo original) ──
+    const estado2Norm=String(record.Estado2||'').trim().toUpperCase();
+    const tieneUbiTecValida=record.Ubi_TEC && (estado2Norm==='EN CAMINO'||estado2Norm==='EN PROCESO');
+    let ubiLat, ubiLng;
+    if(tieneUbiTecValida){
+      const ubiParts=String(record.Ubi_TEC).split(',').map(s=>parseFloat(s.trim()));
+      ubiLat=ubiParts[0]; ubiLng=ubiParts[1];
+      if(!isNaN(ubiLat)&&!isNaN(ubiLng)){
+        const startMarker=L.marker([ubiLat,ubiLng],{
+          icon:L.divIcon({className:'',html:'<div class="tec-start-pin"><i class="fas fa-flag"></i></div>',iconSize:[20,20],iconAnchor:[10,20]}),
+          zIndexOffset:750
+        }).addTo(map);
+        startMarker.bindTooltip(`Inicio del trayecto · ${record.Tecnico||'Técnico'}`,{direction:'top',offset:[0,-16]});
+        startMarker.on('click',()=>showRecordDetails(record));
+        markers.push(startMarker);
+      }
+    }
+
     // ── Posición simulada del técnico (Ubi_TEC): solo si Estado2 = EN CAMINO o EN PROCESO,
     //    y solo si el usuario tiene activada esta función con el botón "Posición Técnicos" ──
-    const estado2Norm=String(record.Estado2||'').trim().toUpperCase();
-    if(isTecSimVisible() && record.Ubi_TEC && (estado2Norm==='EN CAMINO'||estado2Norm==='EN PROCESO')){
-      const ubiParts=String(record.Ubi_TEC).split(',').map(s=>parseFloat(s.trim()));
-      const ubiLat=ubiParts[0], ubiLng=ubiParts[1];
-      if(!isNaN(ubiLat)&&!isNaN(ubiLng)){
-        const carMarker=L.marker([ubiLat,ubiLng],{
-          icon:L.divIcon({className:'',html:'<div class="tec-car-pin"><i class="fas fa-car"></i></div>',iconSize:[28,28],iconAnchor:[14,14]}),
-          zIndexOffset:800
-        }).addTo(map);
-        carMarker.bindTooltip(`${record.Tecnico||'Técnico'} · ${record.Estado2}`,{direction:'top',offset:[0,-14]});
-        carMarker.on('click',()=>showRecordDetails(record));
-        markers.push(carMarker);
-        // Si va "EN CAMINO", simular el desplazamiento del técnico desde Ubi_TEC hacia el destino del cliente
-        if(estado2Norm==='EN CAMINO' && !isNaN(lat) && !isNaN(lng)){
-          // Marca fija del punto de partida (Ubi_TEC), para que se siga viendo de dónde salió el técnico
-          const startMarker=L.marker([ubiLat,ubiLng],{
-            icon:L.divIcon({className:'',html:'<div class="tec-start-pin"><i class="fas fa-flag"></i></div>',iconSize:[20,20],iconAnchor:[10,20]}),
-            zIndexOffset:750
-          }).addTo(map);
-          startMarker.bindTooltip(`Inicio del trayecto · ${record.Tecnico||'Técnico'}`,{direction:'top',offset:[0,-16]});
-          startMarker.on('click',()=>showRecordDetails(record));
-          markers.push(startMarker);
-          startTecCarAnimation(carMarker, ubiLat, ubiLng, parseFloat(lat), parseFloat(lng));
-        }
+    if(isTecSimVisible() && tieneUbiTecValida && !isNaN(ubiLat) && !isNaN(ubiLng)){
+      const carMarker=L.marker([ubiLat,ubiLng],{
+        icon:L.divIcon({className:'',html:'<div class="tec-car-pin"><i class="fas fa-car"></i></div>',iconSize:[28,28],iconAnchor:[14,14]}),
+        zIndexOffset:800
+      }).addTo(map);
+      carMarker.bindTooltip(`${record.Tecnico||'Técnico'} · ${record.Estado2}`,{direction:'top',offset:[0,-14]});
+      carMarker.on('click',()=>showRecordDetails(record));
+      markers.push(carMarker);
+      // Si va "EN CAMINO", simular el desplazamiento del técnico desde Ubi_TEC hacia el destino del cliente
+      if(estado2Norm==='EN CAMINO' && !isNaN(lat) && !isNaN(lng)){
+        startTecCarAnimation(carMarker, ubiLat, ubiLng, parseFloat(lat), parseFloat(lng));
       }
     }
   });
