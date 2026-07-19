@@ -1626,7 +1626,13 @@ function renderMarkersFromRecords(records) {
       const tecPinHtml=esEnProceso
         ? '<div class="tec-working-pin"><i class="fas fa-screwdriver-wrench"></i></div>'
         : '<div class="tec-car-pin"><i class="fas fa-car"></i></div>';
-      const carMarker=L.marker([ubiLat,ubiLng],{
+      // "EN PROCESO": el técnico ya está trabajando en el sitio → el ícono se ancla en la
+      // posición fija de la ORDEN (dirección del cliente), no en Ubi_TEC (que es la marca
+      // de inicio del trayecto). Si la orden no tiene coordenadas válidas, cae a Ubi_TEC.
+      const ordenLatOk=!isNaN(parseFloat(lat)) && !isNaN(parseFloat(lng));
+      const pinLat=(esEnProceso && ordenLatOk)?parseFloat(lat):ubiLat;
+      const pinLng=(esEnProceso && ordenLatOk)?parseFloat(lng):ubiLng;
+      const carMarker=L.marker([pinLat,pinLng],{
         icon:L.divIcon({className:'',html:tecPinHtml,iconSize:[28,28],iconAnchor:[14,14]}),
         zIndexOffset:800
       }).addTo(map);
