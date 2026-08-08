@@ -2607,11 +2607,17 @@ function handleExcelUpload(e){
   const reader=new FileReader();
   reader.onload=async function(evt){
     let json;
+    let esCsvAppSheetCrudo=false;
     if(isCsv){
       const text=typeof evt.target.result==='string'?evt.target.result:new TextDecoder('utf-8').decode(evt.target.result);
       const objs=csvTextToObjects(text);
       const headers=objs.length?Object.keys(objs[0]):[];
-      json=isRawAppSheetCsv(headers)?filasDelZonalActivo(objs).filter(esProgramadoOPendienteSinTecnico).map(mapAppSheetRowToRecord):objs;
+      if(isRawAppSheetCsv(headers)){
+        esCsvAppSheetCrudo=true;
+        json=filasDelZonalActivo(objs).filter(esProgramadoOPendienteSinTecnico).map(mapAppSheetRowToRecord);
+      } else {
+        json=objs;
+      }
     } else {
       const wb=XLSX.read(new Uint8Array(evt.target.result),{type:'array'});
       json=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});
@@ -2623,7 +2629,28 @@ function handleExcelUpload(e){
       const key=`${lat},${lng}`;if(coordMap.has(key))return;coordMap.set(key,true);
       newRecords.push({id:row.id||row.ID||row.Codigo||Date.now()+Math.random(),Codigo:row.Codigo,Cliente:row.Cliente,Direccion:row.Direccion,longitud_X:lng,latitud_Y:lat,Ubicacion:row.Ubicacion,Location:row.Location||row.location||row.LOCATION||'',Distrito:row.Distrito,Tecnico:row.Tecnico,Estado:row.Estado,Observaciones:row.Observaciones,Estado2:row.Estado2,Tramo:row.Tramo,Negocio:row.Negocio,Agencia:row.Agencia||row.AGENCIA||'',Ubi_TEC:row.Ubi_TEC||row.ubi_tec||row.UBI_TEC||''});
     });
-    allRecords=newRecords;
+    let cantidadPublicada=newRecords.length;
+    if(esCsvAppSheetCrudo){
+      // El CSV crudo de AppSheet solo AÑADE los registros PROGRAMADO/PENDIENTE
+      // sin técnico; nunca borra ni reemplaza las ubicaciones ya cargadas.
+      const codigosExistentes=new Set(allRecords.map(r=>String(r.Codigo||'').trim()).filter(Boolean));
+      const coordsExistentes=new Set(allRecords.map(r=>`${r.latitud_Y},${r.longitud_X}`));
+      let agregados=0;
+      newRecords.forEach(nr=>{
+        const codeKey=String(nr.Codigo||'').trim();
+        const coordKey=`${nr.latitud_Y},${nr.longitud_X}`;
+        const yaExiste=(codeKey&&codigosExistentes.has(codeKey))||coordsExistentes.has(coordKey);
+        if(!yaExiste){
+          allRecords.push(nr);
+          if(codeKey)codigosExistentes.add(codeKey);
+          coordsExistentes.add(coordKey);
+          agregados++;
+        }
+      });
+      cantidadPublicada=agregados;
+    } else {
+      allRecords=newRecords;
+    }
     window._userHasZoomed = false;
     // Guardar y mostrar fecha/hora de última carga en Supabase (visible para todos)
     const now=new Date();
@@ -2633,7 +2660,7 @@ function handleExcelUpload(e){
     localStorage.setItem(`records_${selectedZone}`,JSON.stringify(allRecords));
     await sbSave('records',selectedZone,allRecords);
     populateFilters();renderMarkers();updateStatistics();showLoading(false);e.target.value='';
-    flashRealtimeIndicator(`${newRecords.length} registros publicados en tiempo real`);
+    flashRealtimeIndicator(esCsvAppSheetCrudo?`${cantidadPublicada} registros nuevos añadidos en tiempo real`:`${cantidadPublicada} registros publicados en tiempo real`);
     _prevSinTecnicoCount=-1; // reset para detectar como primera carga
     // Llamar después del indicador verde para que la alerta roja (si aplica) lo sobreescriba
     checkNuevosSinTecnico(allRecords);
