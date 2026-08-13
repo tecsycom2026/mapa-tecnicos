@@ -654,9 +654,12 @@
           </h2>
           <div id="collapseHistorial" class="accordion-collapse collapse">
             <div class="accordion-body">
-              <p class="small text-muted mb-2">Registro por hora de las ubicaciones que llegaron sin técnico asignado, sincronizado en línea con Supabase.</p>
-              <button id="vaciar-historial-btn" class="btn btn-outline-danger btn-sm w-100 mb-2"><i class="fas fa-trash me-1"></i>Vaciar historial de esta zona</button>
-              <div id="historial-sin-tecnico-content" style="max-height:320px;overflow-y:auto;">
+              <p class="small text-muted mb-2">Toca una hora para ver esas ubicaciones en el mapa.</p>
+              <div class="d-flex gap-2 mb-2">
+                <button id="limpiar-historial-mapa-btn" class="btn btn-outline-secondary btn-sm w-100 d-none"><i class="fas fa-eraser me-1"></i>Quitar del mapa</button>
+                <button id="vaciar-historial-btn" class="btn btn-outline-danger btn-sm w-100"><i class="fas fa-trash me-1"></i>Vaciar historial</button>
+              </div>
+              <div id="historial-sin-tecnico-content" style="max-height:340px;overflow-y:auto;">
                 <div class="text-muted small">Cargando...</div>
               </div>
             </div>
@@ -1161,6 +1164,7 @@ function flashRealtimeIndicator(msg) {
 
 // ─── Globals ──────────────────────────────────────────────────────────────────
 let map, markers = [], allRecords = [], techColors = {}, techImages = {}, customCoords = [];
+let historialLayer; // capa independiente del mapa para mostrar ubicaciones del historial sin técnico
 let tecSimAnimations = []; // banderas de cancelación de las animaciones de "carro en camino"
 let currentRecord = null, technicianList = [], countdownInterval = null;
 window.currentSuggestions = [];
@@ -1283,26 +1287,82 @@ function renderHistorialSinTecnicoPanel(){
     cont.innerHTML = '<div class="text-muted small">Sin historial registrado</div>';
     return;
   }
+  // Agrupar por hora_bucket y luego por fecha, estilo calendario
   const grupos = {};
   historialSinTecnico.forEach(h=>{ (grupos[h.hora_bucket] ||= []).push(h); });
-  const horas = Object.keys(grupos).sort().reverse();
-  cont.innerHTML = horas.map(hora=>{
-    const items = grupos[hora];
-    const filas = items.map(i=>{
-      const linea = [i.codigo || i.record_id, i.distrito, i.direccion].filter(Boolean).join(' — ');
-      return `<li>${linea || i.record_id}</li>`;
+  const porFecha = {};
+  Object.keys(grupos).forEach(hb=>{
+    const [fecha,hora] = hb.split(' ');
+    (porFecha[fecha] ||= []).push({ hora, hb, items: grupos[hb] });
+  });
+  const fechas = Object.keys(porFecha).sort().reverse();
+  cont.innerHTML = fechas.map(fecha=>{
+    const horas = porFecha[fecha].sort((a,b)=>a.hora.localeCompare(b.hora));
+    const fechaLabel = new Date(fecha+'T00:00:00').toLocaleDateString('es-PE',{weekday:'short',day:'2-digit',month:'short'});
+    const botones = horas.map(h=>{
+      const activo = window._historialActivo === h.hb;
+      const conCoords = h.items.some(it=>it.latitud!=null && it.longitud!=null);
+      return `
+        <div class="text-center" style="width:66px;">
+          <button class="btn btn-sm ${activo?'btn-primary':'btn-outline-primary'} w-100 px-1"
+                  onclick="toggleHistorialEnMapa('${h.hb}')" title="${conCoords?'Ver en el mapa':'Sin coordenadas guardadas'}" ${conCoords?'':'disabled'}>
+            <i class="fas fa-clock d-block"></i>${h.hora}
+          </button>
+          <div class="small text-muted mt-1">
+            <span class="badge bg-secondary">${h.items.length}</span>
+            <button class="btn btn-sm btn-link text-danger p-0 ms-1" onclick="eliminarHistorialHora('${h.hb}')" title="Eliminar esta hora">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </div>`;
     }).join('');
-    return `<div class="border rounded p-2 mb-2">
-      <div class="d-flex justify-content-between align-items-center">
-        <strong class="small">🕐 ${hora}</strong>
-        <div>
-          <span class="badge bg-secondary me-1">${items.length}</span>
-          <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="eliminarHistorialHora('${hora}')" title="Eliminar esta hora"><i class="fas fa-trash"></i></button>
-        </div>
-      </div>
-      <ul class="mb-0 mt-1 ps-3 small">${filas}</ul>
-    </div>`;
+    return `
+      <div class="mb-2 pb-2 border-bottom">
+        <div class="small fw-bold text-capitalize mb-1">📅 ${fechaLabel}</div>
+        <div class="d-flex flex-wrap gap-2">${botones}</div>
+      </div>`;
   }).join('');
+}
+
+function toggleHistorialEnMapa(horaBucket){
+  if(window._historialActivo === horaBucket){
+    limpiarHistorialDelMapa();
+    return;
+  }
+  mostrarHistorialEnMapa(horaBucket);
+}
+
+function mostrarHistorialEnMapa(horaBucket){
+  if(!historialLayer) return;
+  historialLayer.clearLayers();
+  const items = historialSinTecnico.filter(h => h.hora_bucket===horaBucket && h.latitud!=null && h.longitud!=null);
+  if(!items.length){
+    alert('Esta hora no tiene ubicaciones con coordenadas guardadas.');
+    return;
+  }
+  const bounds = [];
+  items.forEach(it=>{
+    const icon = L.divIcon({
+      className: 'historial-marker-icon',
+      html: `<div style="background:#8e44ad;color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff;font-size:13px;"><i class="fas fa-clock"></i></div>`,
+      iconSize:[28,28], iconAnchor:[14,14]
+    });
+    L.marker([it.latitud, it.longitud], {icon})
+      .bindPopup(`<strong>${it.codigo||it.record_id||''}</strong><br>${it.distrito||''}${it.direccion?(' · '+it.direccion):''}<br><span class="text-muted small">Sin técnico — ${horaBucket}</span>`)
+      .addTo(historialLayer);
+    bounds.push([it.latitud, it.longitud]);
+  });
+  window._historialActivo = horaBucket;
+  document.getElementById('limpiar-historial-mapa-btn')?.classList.remove('d-none');
+  map.fitBounds(bounds, {padding:[60,60], maxZoom:16});
+  renderHistorialSinTecnicoPanel();
+}
+
+function limpiarHistorialDelMapa(){
+  if(historialLayer) historialLayer.clearLayers();
+  window._historialActivo = null;
+  document.getElementById('limpiar-historial-mapa-btn')?.classList.add('d-none');
+  renderHistorialSinTecnicoPanel();
 }
 
 async function eliminarHistorialHora(horaBucket){
@@ -1310,6 +1370,7 @@ async function eliminarHistorialHora(horaBucket){
   try{
     const { error } = await sb.from('historial_sin_tecnico').delete().eq('zone', selectedZone).eq('hora_bucket', horaBucket);
     if(error) throw error;
+    if(window._historialActivo === horaBucket) limpiarHistorialDelMapa();
     await loadHistorialSinTecnico();
   }catch(e){ alert('No se pudo eliminar el historial: '+e.message); }
 }
@@ -1319,6 +1380,7 @@ async function vaciarHistorialSinTecnico(){
   try{
     const { error } = await sb.from('historial_sin_tecnico').delete().eq('zone', selectedZone);
     if(error) throw error;
+    limpiarHistorialDelMapa();
     await loadHistorialSinTecnico();
   }catch(e){ alert('No se pudo vaciar el historial: '+e.message); }
 }
@@ -1470,6 +1532,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ─── Load zone data ───────────────────────────────────────────────────────────
 async function loadZoneData(zone) {
+  limpiarHistorialDelMapa(); // evita marcadores de historial de otra zona al cambiar
   try {
     const [recData, coordData] = await Promise.all([
       sbLoad('records', zone),
@@ -1519,6 +1582,7 @@ async function loadZoneData(zone) {
 // ─── Map ──────────────────────────────────────────────────────────────────────
 function initMap() {
   map = L.map('map').setView([-12.0464, -77.0428], 12);
+  historialLayer = L.layerGroup().addTo(map);
   applyMapStyle(localStorage.getItem('selectedStyle') || MAP_STYLES[0].name);
   const to = document.createElement('div');
   to.id = 'global-timer-overlay'; to.style.display = 'none';
@@ -1538,6 +1602,7 @@ function setupEventListeners() {
   });
   document.getElementById('close-detail')?.addEventListener('click', () => document.getElementById('detail-panel').classList.remove('open'));
   document.getElementById('vaciar-historial-btn')?.addEventListener('click', vaciarHistorialSinTecnico);
+  document.getElementById('limpiar-historial-mapa-btn')?.addEventListener('click', limpiarHistorialDelMapa);
   document.getElementById('delete-record')?.addEventListener('click', () => { if (currentRecord) deleteRecord(currentRecord.id); });
   document.getElementById('clear-filters')?.addEventListener('click', () => {
     ['tramo-filter','estado-filter','tecnico-filter','negocio-filter','distrito-filter'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
