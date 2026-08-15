@@ -38,6 +38,8 @@
     .glow { animation:glow 1s ease-in-out alternate 3; }
     #coord-list { display:none; }
     .estado-label { background:transparent; border:none; padding:3px 7px; font-size:15px; white-space:nowrap; margin-left:21px; text-align:center; pointer-events:none; box-shadow:none; font-weight:700; }
+    .distrito-label { background:rgba(255,255,255,.92); border:1px solid #0d6efd; border-radius:4px; padding:2px 8px; font-size:12px; font-weight:700; color:#0d47a1; white-space:nowrap; pointer-events:none; box-shadow:0 1px 3px rgba(0,0,0,.25); }
+    .distrito-label::before { border-right-color:#0d6efd!important; }
     .custom-marker-container { display:flex; align-items:center; flex-direction:row; }
     .estado-en-camino { color:black!important; background-color:yellow!important; }
     .estado-pendiente { font-weight:bold; color:black!important; background-color:yellow!important; border:none!important; box-shadow:none!important; }
@@ -1372,6 +1374,7 @@ function mostrarHistorialEnMapa(horaBucket){
     });
     const m = L.marker([it.latitud, it.longitud], {icon, pane:'historialPane', zIndexOffset: 1000})
       .bindPopup(`<strong>${it.codigo||it.record_id||''}</strong><br>${it.distrito||''}${it.direccion?(' · '+it.direccion):''}<br><span class="text-muted small">Sin técnico — ${horaBucket}</span>`)
+      .bindTooltip(it.distrito || 'Sin distrito', {permanent:true, direction:'left', offset:[-18,0], className:'distrito-label'})
       .addTo(historialLayer);
     if(idx===0) primerMarker = m;
     bounds.push([it.latitud, it.longitud]);
