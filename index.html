@@ -639,8 +639,13 @@
         </div>
 
         <div id="tech-summary-panel" class="mb-4 p-3 border rounded bg-light mt-3">
-          <h6>Resumen por Técnico</h6>
-          <div id="tech-summary-content" class="small"><div class="text-center text-muted">Cargando...</div></div>
+          <h6 class="d-flex justify-content-between align-items-center mb-0">
+            <span>Resumen por Técnico</span>
+            <button id="toggle-tech-summary-btn" type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" title="Ocultar/Mostrar resumen">
+              <i class="fas fa-eye-slash"></i>
+            </button>
+          </h6>
+          <div id="tech-summary-content" class="small mt-2"><div class="text-center text-muted">Cargando...</div></div>
         </div>
 
         <!-- Panel gestión de PINs -->
@@ -1509,6 +1514,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
   setupStyleLegend();
   setupCoordForm();
+  setupTechSummaryToggle();
 
   // Restaurar fecha de última carga desde Supabase
   const savedUpload = localStorage.getItem('lastUploadDate');
@@ -3114,11 +3120,28 @@ function setupCoordForm(){
     const parts=this.value.trim().split(',').map(s=>parseFloat(s.trim()));
     if(parts.length===2&&!parts.some(isNaN)){
       if(window.tempPreviewMarker)map.removeLayer(window.tempPreviewMarker);
-      window.tempPreviewMarker=L.marker([parts[0],parts[1]],{icon:L.divIcon({className:'custom-pin',html:`<div class="custom-pin" style="--color:#4285F4;opacity:.6">📍</div>`,iconSize:[30,30],iconAnchor:[15,15]})}).addTo(map);
+      window.tempPreviewMarker=L.marker([parts[0],parts[1]],{icon:L.divIcon({className:'',html:`<div style="font-size:28px;line-height:30px;text-align:center;">📍</div>`,iconSize:[30,30],iconAnchor:[15,28]})}).addTo(map);
       map.setView([parts[0],parts[1]],15);
     }
   });
   updateCategoryCheckboxes();
+}
+
+function setupTechSummaryToggle(){
+  const btn=document.getElementById('toggle-tech-summary-btn');
+  const content=document.getElementById('tech-summary-content');
+  if(!btn||!content)return;
+  function applyState(hidden){
+    content.style.display=hidden?'none':'';
+    btn.innerHTML=hidden?'<i class="fas fa-eye"></i>':'<i class="fas fa-eye-slash"></i>';
+    btn.title=hidden?'Mostrar resumen':'Ocultar resumen';
+  }
+  applyState(localStorage.getItem('techSummaryHidden')==='1');
+  btn.addEventListener('click',()=>{
+    const hidden=content.style.display==='none';
+    localStorage.setItem('techSummaryHidden',hidden?'0':'1');
+    applyState(!hidden);
+  });
 }
 
 async function saveAndRenderCoord(entry){
