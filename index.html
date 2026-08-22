@@ -3583,7 +3583,7 @@ function generarMensajeHoyTexto(record, modo){
     turnos='*Turno 1:* de 08:00 am a 12:00 pm\n*Turno 2:* de 12:00 pm a 04:00 pm\n*Turno 3:* de 04:00 pm a 08:00 pm';
     opciones='1, 2, 3';
     ejemplo='*Turno 1* — Disponible desde las 9:00 am.\n*1* — Disponible desde las 9:00 am.';
-  } else if(modo==='12'){
+  } else if(modo==='23'){
     turnos='*Turno 2:* de 12:00 pm a 04:00 pm\n*Turno 3:* de 04:00 pm a 08:00 pm';
     opciones='2, 3';
     ejemplo='*Turno 2* — Disponible desde la 1:30 pm.\n*2* — Disponible desde la 1:30 pm.';
@@ -3692,7 +3692,7 @@ function showRecordDetails(record){
       <h6><i class="fab fa-whatsapp me-1"></i> Mensaje del Día</h6>
       <div class="d-flex flex-wrap gap-2">
         <button class="btn btn-success msg-hoy-btn" data-modo="123" style="line-height:1.15;min-width:64px;"><div>HOY</div><small>123</small></button>
-        <button class="btn btn-success msg-hoy-btn" data-modo="12" style="line-height:1.15;min-width:64px;"><div>HOY</div><small>12</small></button>
+        <button class="btn btn-success msg-hoy-btn" data-modo="23" style="line-height:1.15;min-width:64px;"><div>HOY</div><small>23</small></button>
         <button class="btn btn-success msg-hoy-btn" data-modo="3" style="line-height:1.15;min-width:64px;"><div>HOY</div><small>3</small></button>
       </div>
       <textarea id="mensaje-hoy-preview" class="form-control form-control-sm mt-2" rows="5" readonly style="display:none;font-size:12px;"></textarea>
