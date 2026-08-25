@@ -166,64 +166,6 @@
     #rm-pick-banner { animation: rmBannerPulse .9s ease-in-out infinite alternate; }
     @keyframes rmBannerPulse { from { opacity: .92; } to { opacity: 1; box-shadow: 0 4px 20px rgba(0,0,0,0.35); } }
 
-    /* ── Panel flotante: Técnicos sin gestión (Estado2 = PROGRAMADO) ── */
-    #alerts-panel {
-      position: absolute;
-      top: 60px;
-      left: 10px;
-      z-index: 1400;
-      background: rgba(255,255,255,0.97);
-      border: 2px solid #dc3545;
-      border-radius: 12px;
-      box-shadow: 0 4px 18px rgba(0,0,0,0.18);
-      min-width: 240px;
-      max-width: 90vw;
-      padding: 0;
-      font-size: 13px;
-    }
-    #alerts-panel.hidden { display: none !important; }
-    #alerts-panel-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: #dc3545;
-      border-radius: 10px 10px 0 0;
-      padding: 7px 12px;
-      font-weight: bold;
-      font-size: 13px;
-      color: #fff;
-      cursor: pointer;
-      user-select: none;
-    }
-    #alerts-panel-header .ft-count {
-      background: #fff;
-      color: #dc3545;
-      border-radius: 10px;
-      padding: 1px 8px;
-      font-size: 12px;
-      font-weight: bold;
-      margin-left: 6px;
-    }
-    #alerts-panel-body { max-height: 260px; overflow-y: auto; padding: 8px 10px; }
-    #alerts-panel-body.collapsed { display: none; }
-    .alert-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 6px;
-      border-bottom: 1px solid #f1f1f1;
-      cursor: pointer;
-      border-radius: 4px;
-    }
-    .alert-item:hover { background: #fff5f5; }
-    .alert-item:last-child { border-bottom: none; }
-    .alert-item .ai-badge { font-size: 11px; font-weight: bold; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
-    .alert-item.tipo-sintecnico .ai-badge { background:#6c757d; color:#fff; }
-    .alert-item.tipo-porvencer .ai-badge { background:#ffc107; color:#333; }
-    .alert-item.tipo-vencida .ai-badge { background:#dc3545; color:#fff; }
-    .alert-item .ai-text { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .alerts-panel-empty { padding: 10px; color: #888; text-align: center; font-size: 12px; }
-
     #free-techs-panel {
       position: absolute;
       bottom: 78px;
@@ -745,18 +687,6 @@
   <div id="map-container">
     <div id="map"></div>
     <div id="realtime-indicator"><i class="fas fa-sync-alt fa-spin me-1"></i> Mapa actualizado en tiempo real</div>
-
-    <!-- Panel flotante: Alertas activas (sin técnico / por vencer / vencidas) — 100% local, sin bots ni webhooks -->
-    <div id="alerts-panel" class="hidden">
-      <div id="alerts-panel-header">
-        <span>🔔 Alertas Activas</span>
-        <span class="ft-count" id="alerts-panel-count">0</span>
-        <span class="ft-toggle-icon" id="alerts-panel-arrow">&#9650;</span>
-      </div>
-      <div id="alerts-panel-body">
-        <!-- Se rellena dinámicamente -->
-      </div>
-    </div>
 
     <!-- Panel flotante: Técnicos pendientes (Estado2 = PROGRAMADO) -->
     <div id="free-techs-panel" class="hidden">
@@ -1450,7 +1380,7 @@ function updateLastUploadLabel(fecha){
 // ─── Sonido para nuevos registros sin técnico ─────────────────────────────────
 let _prevSinTecnicoCount = -1; // -1 = nunca inicializado
 
-// ─── Panel de alertas activas (persistente, todo dentro del propio mapa) ──────
+// ─── Estado interno de alertas (usado solo por el recordatorio sonoro) ────────
 // Se recalcula en cada tick de updateCountdowns() y cada vez que llegan datos
 // nuevos. No depende de nada externo (sin bots, sin webhooks).
 let _alertsState = { sinTecnico: 0, porVencer: [], vencidas: [] };
@@ -1465,7 +1395,6 @@ function checkNuevosSinTecnico(records){
   }
   _prevSinTecnicoCount = sinTecnico;
   _alertsState.sinTecnico = sinTecnico;
-  renderAlertsPanel();
 }
 
 function showSinTecnicoAlert(total){
@@ -2445,19 +2374,6 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem('mapShowAllStates', nowAll ? 'true' : 'false');
     estadoAllBtn.classList.toggle('active', nowAll);
     renderMarkers();
-  });
-});
-
-// ── Panel de alertas: colapsar/expandir al hacer clic en el header ──
-document.addEventListener('DOMContentLoaded', () => {
-  document.addEventListener('click', e => {
-    const hdr = e.target.closest('#alerts-panel-header');
-    if(!hdr) return;
-    const body = document.getElementById('alerts-panel-body');
-    const arrow = document.getElementById('alerts-panel-arrow');
-    if(!body||!arrow) return;
-    body.classList.toggle('collapsed');
-    arrow.innerHTML = body.classList.contains('collapsed') ? '&#9660;' : '&#9650;';
   });
 });
 
@@ -3774,11 +3690,10 @@ function updateStatistics(){
   const n=allRecords.filter(r=>!r.Tecnico).length;
   const el=document.getElementById('no-tech-summary');
   if(el)el.innerHTML=`Sin técnico: <span class="badge bg-secondary">${n}</span> registros`;
-  // Mantiene sincronizado el panel flotante de alertas (superior izquierda) con
-  // el conteo real de "sin técnico" tras CADA cambio local (asignar, eliminar,
-  // recargar, etc.), no solo cuando llegan cambios por Supabase Realtime.
+  // Mantiene sincronizado el conteo interno de "sin técnico" (usado por el
+  // recordatorio sonoro) tras CADA cambio local (asignar, eliminar, recargar, etc.),
+  // no solo cuando llegan cambios por Supabase Realtime.
   _alertsState.sinTecnico = n;
-  renderAlertsPanel();
   updateFreeTechsPanel();
 }
 
@@ -4034,114 +3949,12 @@ function updateCountdowns(){
 
   _alertsState.porVencer = porVencer;
   _alertsState.vencidas = vencidas;
-  renderAlertsPanel();
   alertReminderHeartbeat();
 }
 function getIntervalFromRange(tr){
   if(!tr) return null;
   const clean=tr.trim();
   return [{name:'8/12',start:8,end:12},{name:'12/16',start:12,end:16},{name:'16/20',start:16,end:20}].find(i=>i.name===clean)||null;
-}
-
-// ─── Panel de alertas: render + recordatorio sonoro periódico ─────────────────
-function renderAlertsPanel(){
-  const panel=document.getElementById('alerts-panel');
-  const body=document.getElementById('alerts-panel-body');
-  const countEl=document.getElementById('alerts-panel-count');
-  if(!panel||!body||!countEl) return;
-
-  const { sinTecnico, porVencer, vencidas } = _alertsState;
-  const total = (sinTecnico||0) + porVencer.length + vencidas.length;
-
-  if(total===0){ panel.classList.add('hidden'); return; }
-  panel.classList.remove('hidden');
-  countEl.textContent = total;
-
-  let html='';
-  if(sinTecnico>0){
-    html += `<div class="alert-item tipo-sintecnico" data-goto="sintecnico">
-      <span class="ai-badge">SIN TÉC.</span>
-      <span class="ai-text">${sinTecnico} registro${sinTecnico!==1?'s':''} sin técnico asignado</span>
-    </div>`;
-  }
-  vencidas.forEach(r=>{
-    html += `<div class="alert-item tipo-vencida" data-codigo="${r.Codigo||''}">
-      <span class="ai-badge">VENCIDA</span>
-      <span class="ai-text">${r.Codigo||'-'} · ${r.Cliente||r.Distrito||'-'}</span>
-    </div>`;
-  });
-  porVencer.forEach(({record:r,restanteMin})=>{
-    html += `<div class="alert-item tipo-porvencer" data-codigo="${r.Codigo||''}">
-      <span class="ai-badge">${restanteMin}m</span>
-      <span class="ai-text">${r.Codigo||'-'} · ${r.Cliente||r.Distrito||'-'}</span>
-    </div>`;
-  });
-  body.innerHTML = html || `<div class="alerts-panel-empty">Sin alertas activas</div>`;
-  attachAlertsPanelDelegation();
-}
-
-// Delegación de clic en el panel de alertas: se conecta UNA sola vez al contenedor
-// padre (que nunca se destruye, aunque su contenido se redibuje cada segundo por el
-// contador regresivo). Así el clic funciona siempre, en cualquier alerta, sin importar
-// cuántas veces se haya vuelto a pintar la lista.
-let _alertsPanelDelegationAttached = false;
-function attachAlertsPanelDelegation(){
-  if(_alertsPanelDelegationAttached) return;
-  const body=document.getElementById('alerts-panel-body');
-  if(!body) return;
-  _alertsPanelDelegationAttached = true;
-  body.addEventListener('click', e=>{
-    const item=e.target.closest('.alert-item');
-    if(!item || !body.contains(item)) return;
-    if(item.dataset.codigo){
-      const cod=item.dataset.codigo;
-      const num=Number(cod);
-      const rec=allRecords.find(r=>{
-        const c=r.Codigo, cn=Number(c);
-        return !isNaN(num)&&!isNaN(cn) ? cn===num : String(c)===cod;
-      });
-      if(rec){
-        goToRecordOnMap(rec);
-      } else {
-        console.warn('[Alertas] No se encontró el registro para el código:', cod);
-      }
-    } else if(item.dataset.goto==='sintecnico'){
-      goToSinTecnicoOnMap();
-    }
-  });
-}
-
-// Centra/ajusta el mapa sobre todas las ubicaciones sin técnico asignado.
-function goToSinTecnicoOnMap(){
-  const sinTec = markers.filter(m=>m.record && !m.record.Tecnico);
-  if(!sinTec.length) return;
-  if(sinTec.length===1){
-    goToRecordOnMap(sinTec[0].record);
-  } else {
-    map.fitBounds(new L.featureGroup(sinTec).getBounds(), {padding:[60,60], maxZoom:17});
-  }
-}
-
-// Mismo procedimiento que searchByCodigo() (centrar mapa con zoom 16, popup y resaltado
-// del pin), aplicado desde el panel de Alertas Activas — pero sin abrir el panel derecho.
-function goToRecordOnMap(record){
-  if(!record){ console.warn('[Alertas] goToRecordOnMap: registro vacío'); return; }
-  const lat = typeof record.latitud_Y==='number' ? record.latitud_Y : parseFloat(String(record.latitud_Y).replace(',','.'));
-  const lng = typeof record.longitud_X==='number' ? record.longitud_X : parseFloat(String(record.longitud_X).replace(',','.'));
-  if(isNaN(lat) || isNaN(lng)){
-    console.warn('[Alertas] Coordenadas inválidas, no se puede centrar. Código:', record.Codigo, 'latitud_Y:', record.latitud_Y, 'longitud_X:', record.longitud_X);
-    return;
-  }
-  map.setView([lat, lng], 16);
-  const popupHTML=`<div><strong>Código:</strong> ${record.Codigo}<br><strong>Cliente:</strong> ${record.Cliente}<br><strong>Dirección:</strong> ${record.Direccion}<br><strong>Estado:</strong> ${record.Estado}</div>`;
-  L.popup({offset:[0,-15]}).setLatLng([lat, lng]).setContent(popupHTML).openOn(map);
-  // Resaltar el pin encontrado
-  const match=markers.find(m=>m.record&&(m.record.id===record.id||m.record.Codigo===record.Codigo));
-  if(match&&match.getElement){
-    const el=match.getElement();
-    if(el){el.classList.add('glow');setTimeout(()=>el.classList.remove('glow'),3000);}
-  }
-  // (Intencionalmente NO se llama a showRecordDetails: no debe abrirse el panel derecho)
 }
 
 // Repite el sonido de notificación cada 90s mientras haya órdenes vencidas o
