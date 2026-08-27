@@ -1624,6 +1624,30 @@ function playConnectionSound(nombre){
   }catch(e){console.warn('Audio conexión:',e);}
 }
 
+function playVencerAlertSound(){
+  try{
+    // Sonido distinto para el recordatorio de vencidas/por vencer:
+    // tres pulsos cortos y graves, tipo "alarma suave", para diferenciarlo
+    // del sonido de "nuevo registro sin técnico" (dos tonos ascendentes).
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const playTone = (freq, start, duration) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = freq;
+      osc.type = 'square';
+      gain.gain.setValueAtTime(0.22, ctx.currentTime + start);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + duration);
+      osc.start(ctx.currentTime + start);
+      osc.stop(ctx.currentTime + start + duration);
+    };
+    playTone(520, 0,    0.14);
+    playTone(520, 0.22, 0.14);
+    playTone(520, 0.44, 0.14);
+  }catch(e){ console.warn('Audio error:',e); }
+}
+
 function playNotificationSound(){
   try{
     // Crear tono de notificación con Web Audio API
@@ -3994,7 +4018,7 @@ function updateCountdowns(){
   const go=document.getElementById('global-timer-overlay');
   if(go){
     go.style.display=soon>0?'block':'none';
-    if(soon>0) go.textContent=`⚠ ${soon} pendiente${soon!==1?'s':''} por vencer`;
+    if(soon>0) go.textContent=`⚠ ${soon} pendiente${soon!==1?'s':''} por vencer — actualice la base del bot`;
   }
 
   _alertsState.porVencer = porVencer;
@@ -4015,7 +4039,7 @@ function alertReminderHeartbeat(){
   const now=Date.now();
   if(now - _lastAlertSoundTs >= 90000){
     _lastAlertSoundTs = now;
-    playNotificationSound();
+    playVencerAlertSound();
   }
 }
 function onCountdownEnd(record,marker){
