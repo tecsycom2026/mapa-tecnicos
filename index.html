@@ -4031,11 +4031,12 @@ function getIntervalFromRange(tr){
   return [{name:'8/12',start:8,end:12},{name:'12/16',start:12,end:16},{name:'16/20',start:16,end:20}].find(i=>i.name===clean)||null;
 }
 
-// Repite el sonido de notificación cada 90s mientras haya órdenes vencidas o
-// sin técnico, para que no pase desapercibido si nadie mira el mapa un rato.
+// Repite el sonido de notificación cada 90s mientras haya pendientes por vencer
+// (el mismo grupo que dispara el banner "⚠ N pendientes por vencer"), para que
+// no pase desapercibido si nadie mira el mapa un rato.
 function alertReminderHeartbeat(){
-  const criticos = (_alertsState.sinTecnico||0) + _alertsState.vencidas.length;
-  if(criticos===0) return;
+  const pendientesPorVencer = _alertsState.porVencer.length;
+  if(pendientesPorVencer===0) return;
   const now=Date.now();
   if(now - _lastAlertSoundTs >= 90000){
     _lastAlertSoundTs = now;
