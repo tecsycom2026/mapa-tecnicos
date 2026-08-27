@@ -708,7 +708,7 @@
       <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div>
     </div>
     <div class="dropdown" id="style-legend">
-      <button class="btn btn-light dropdown-toggle" type="button" data-bs-toggle="dropdown"><span id="current-style-label">CartoDB Positron</span></button>
+      <button class="btn btn-light dropdown-toggle" type="button" data-bs-toggle="dropdown"><span id="current-style-label">Esri Light Gray</span></button>
       <ul class="dropdown-menu"></ul>
     </div>
 
@@ -4040,17 +4040,23 @@ function shouldApplyFormatting(estado){
 function updateFormatToggleLabel(toggle){const lbl=document.querySelector(`label[for="${toggle.id}"]`);if(lbl)lbl.classList.toggle('bg-yellow',toggle.checked);}
 
 const MAP_STYLES=[
-  {name:'CartoDB Positron',url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',attribution:'&copy; CartoDB'},
+  {name:'Esri Light Gray',url:'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',overlayUrl:'https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',attribution:'Tiles &copy; Esri'},
   {name:'Light Mode',url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',attribution:'&copy; OpenStreetMap'},
   {name:'Esri WorldImagery',url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',attribution:'Tiles &copy; Esri'},
   {name:'Google Maps',url:'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',attribution:'&copy; Google Maps'},
   {name:'Google Hybrid',url:'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',attribution:'&copy; Google Maps'}
 ];
-let currentTileLayer;
+let currentTileLayer,currentOverlayLayer;
 function applyMapStyle(name){
   const s=MAP_STYLES.find(x=>x.name===name)||MAP_STYLES[0];
   if(currentTileLayer)map.removeLayer(currentTileLayer);
+  if(currentOverlayLayer){map.removeLayer(currentOverlayLayer);currentOverlayLayer=null;}
   currentTileLayer=L.tileLayer(s.url,{attribution:s.attribution}).addTo(map);
+  if(s.overlayUrl){
+    // Algunos estilos (ej. Esri Light Gray) separan el mapa base de las
+    // etiquetas/calles en una segunda capa que se superpone encima.
+    currentOverlayLayer=L.tileLayer(s.overlayUrl,{attribution:s.attribution}).addTo(map);
+  }
   const lbl=document.getElementById('current-style-label');if(lbl)lbl.textContent=s.name;
   localStorage.setItem('selectedStyle',s.name);highlightSidebarStyle(s.name);
 }
