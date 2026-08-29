@@ -1349,7 +1349,10 @@ function renderTechAlerts(){
 async function loadTechAlerts(){
   const { data, error } = await sb.from('tech_alerts').select('*').order('created_at', { ascending: true });
   if (error) { console.warn('loadTechAlerts error:', error); return; }
-  _techAlerts = data || [];
+  // Deduplicado defensivo por nombre (por si quedó alguna fila vieja repetida): se queda con la más reciente
+  const porNombre = {};
+  (data || []).forEach(a => { porNombre[(a.tecnico||'').trim().toLowerCase()] = a; });
+  _techAlerts = Object.values(porNombre).sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
   renderTechAlerts();
 }
 
@@ -1366,7 +1369,15 @@ function subscribeTechAlerts(){
   if (_techAlertsChannel) { sb.removeChannel(_techAlertsChannel); _techAlertsChannel = null; }
   _techAlertsChannel = sb.channel('tech_alerts_global')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tech_alerts' }, payload => {
+      if (_techAlerts.some(a => String(a.id) === String(payload.new.id))) return; // ya estaba
       _techAlerts.push(payload.new);
+      renderTechAlerts();
+    })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tech_alerts' }, payload => {
+      // Ocurre cuando un técnico que YA tenía una alerta activa vuelve a presionar el botón:
+      // se actualiza la misma fila (misma persona) en vez de crear una nueva.
+      const idx = _techAlerts.findIndex(a => String(a.id) === String(payload.new.id));
+      if (idx >= 0) _techAlerts[idx] = payload.new; else _techAlerts.push(payload.new);
       renderTechAlerts();
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tech_alerts' }, payload => {
