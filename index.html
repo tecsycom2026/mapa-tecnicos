@@ -1229,7 +1229,7 @@ function subscribeToZone(zone) {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'coords', filter: `id=eq.${zone}` }, payload => {
       const incoming = payload.new?.data;
       if (!incoming) return;
-      customCoords = Array.isArray(incoming) ? incoming : Object.values(incoming);
+      customCoords = sanitizeCoords(incoming);
       localStorage.setItem(`customCoords_${zone}`, JSON.stringify(customCoords));
       renderCustomCoordsList(); updateCategoryCheckboxes(); renderMarkers();
       flashRealtimeIndicator('Coordenadas actualizadas');
@@ -1596,11 +1596,24 @@ const INTERVALS = [{name:'8/12',start:8,end:12},{name:'12/16',start:12,end:16},{
 const savedTI = localStorage.getItem('techImages');
 if (savedTI) techImages = JSON.parse(savedTI);
 const savedCC = localStorage.getItem(`customCoords_${selectedZone}`);
-if (savedCC) customCoords = JSON.parse(savedCC);
+if (savedCC) customCoords = sanitizeCoords(JSON.parse(savedCC));
 let categoryImages = {}; // { "Zona sin Cobertura-LIMA": "base64...", ... }
 const savedCI = localStorage.getItem('categoryImages');
 if (savedCI) categoryImages = JSON.parse(savedCI);
 
+// ─── Saneamiento de customCoords ───────────────────────────────────────────────
+// Filtra cualquier entrada corrupta (sin categoría, o sin lat/lng numéricos
+// válidos) para que un dato dañado guardado en Supabase/localStorage no vuelva
+// a romper renderCustomCoordsList/updateCategoryCheckboxes/renderMarkers.
+function sanitizeCoords(arr){
+  const list = Array.isArray(arr) ? arr : (arr ? Object.values(arr) : []);
+  return list.filter(c=>{
+    if(!c || typeof c!=='object') return false;
+    if(typeof c.category!=='string' || !c.category) return false;
+    const lat=Number(c.lat), lng=Number(c.lng);
+    return Number.isFinite(lat) && Number.isFinite(lng);
+  });
+}
 function normalizeString(s) { return s ? s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase() : ''; }
 function showLoading(v) { document.getElementById('loading-overlay').style.display = v ? 'flex' : 'none'; }
 function updateLastUploadLabel(fecha){
@@ -2030,11 +2043,11 @@ async function loadZoneData(zone) {
     }
 
     if(coordData !== null){
-      customCoords = Array.isArray(coordData) ? coordData : Object.values(coordData);
+      customCoords = sanitizeCoords(coordData);
       localStorage.setItem(`customCoords_${zone}`, JSON.stringify(customCoords));
     } else {
       const local = localStorage.getItem(`customCoords_${zone}`);
-      customCoords = local ? JSON.parse(local) : [];
+      customCoords = sanitizeCoords(local ? JSON.parse(local) : []);
     }
 
     // Reset zoom para que fitBounds muestre los datos de la zona nueva
@@ -2051,7 +2064,7 @@ async function loadZoneData(zone) {
     const localRec = localStorage.getItem(`records_${zone}`);
     const localCoord = localStorage.getItem(`customCoords_${zone}`);
     allRecords   = localRec   ? JSON.parse(localRec)   : [];
-    customCoords = localCoord ? JSON.parse(localCoord) : [];
+    customCoords = sanitizeCoords(localCoord ? JSON.parse(localCoord) : []);
     window._userHasZoomed = false;
     populateFilters(); renderMarkers(); updateStatistics();
     renderCustomCoordsList(); updateCategoryCheckboxes();
@@ -2425,6 +2438,9 @@ function renderMarkersFromRecords(records) {
   });
   const showKml=localStorage.getItem('showKmlPoints')==='true';
   customCoords.forEach(c=>{
+    // Protección extra: ignorar registros corruptos (sin categoría o sin lat/lng
+    // numéricos válidos) para que no rompan el resto del renderizado del mapa
+    if(!c||typeof c.category!=='string'||!Number.isFinite(Number(c.lat))||!Number.isFinite(Number(c.lng)))return;
     // showKml solo aplica a categoría Dirección de Técnicos
     if(c.kml && c.category==='Dirección de Técnicos' && !showKml)return;
     if(c.zone!==selectedZone)return;
@@ -3530,24 +3546,44 @@ function handleKmlUpload(e){
   const html=`<div class="modal fade" id="kmlCatModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Seleccionar Categoría</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><select id="kml-category-select" class="form-select"><option value="Zona sin Cobertura">Zona sin Cobertura</option><option value="Sin FFTT">Sin FFTT</option><option value="Zona Peligrosa">Zona Peligrosa</option><option value="Dirección de Técnicos">Dirección de Técnicos</option></select></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-primary" id="kml-confirm-btn">Confirmar</button></div></div></div></div>`;
   const mc=document.createElement('div');mc.innerHTML=html;document.body.appendChild(mc);
   const modalEl=document.getElementById('kmlCatModal'),modal=new bootstrap.Modal(modalEl);modal.show();
+
+  let confirmed=false; // distingue "confirmó" de "canceló/cerró" el modal
+
   document.getElementById('kml-confirm-btn').addEventListener('click',function(){
+    confirmed=true;
     const cat=document.getElementById('kml-category-select').value;
     modal.hide();showLoading(true);
     const reader=new FileReader();
     reader.onload=async function(evt){
       try{
         const doc=new DOMParser().parseFromString(evt.target.result,'text/xml');
+        // ── Detectar XML/KML mal formado: DOMParser no lanza excepción, inserta un
+        //    nodo <parsererror> en su lugar, así que hay que revisarlo explícitamente ──
+        if(doc.getElementsByTagName('parsererror').length){
+          throw new Error('El archivo no es un KML válido (XML mal formado).');
+        }
         const pms=doc.getElementsByTagName('Placemark');
+        if(pms.length===0){
+          msgEl.textContent='El KML no contiene puntos (Placemark) legibles.';
+          msgEl.className='small mt-1 text-warning';
+          showLoading(false);e.target.value='';
+          return;
+        }
         const newCoords=[];
         for(let i=0;i<pms.length;i++){
           const pm=pms[i];
           const name=pm.querySelector('name')?.textContent||'';
-          const coords=pm.getElementsByTagName('coordinates')[0]?.textContent.trim();
+          const coordsTag=pm.getElementsByTagName('coordinates')[0];
+          const coords=coordsTag?coordsTag.textContent.trim():'';
           if(!coords)continue;const parts=coords.split(',');if(parts.length<2)continue;
           const lng=parseFloat(parts[0]),lat=parseFloat(parts[1]);
           if(isNaN(lat)||isNaN(lng))continue;
           newCoords.push({id:Date.now()+i,lat,lng,category:cat,note:name,imgData:null,zone:selectedZone,kml:true});
         }
+        // ── Autoreparación: si había registros corruptos (sin categoría o sin
+        //    lat/lng válidos) guardados de antes en Supabase/localStorage, se
+        //    descartan aquí para que dejen de romper la app en todos los equipos ──
+        customCoords=sanitizeCoords(customCoords);
         // ── Acumular por categoría: elimina solo los KML de ESTA categoría y zona,
         //    conserva las demás categorías intactas ──
         const sinEstaCategoria=customCoords.filter(c=>!(c.kml&&c.zone===selectedZone&&c.category===cat));
@@ -3557,12 +3593,33 @@ function handleKmlUpload(e){
         flashRealtimeIndicator(`${newCoords.length} puntos KML publicados en tiempo real`);
         renderCustomCoordsList();updateCategoryCheckboxes();renderMarkers();
         msgEl.textContent=`${newCoords.length} coordenadas procesadas.`;msgEl.className='small mt-1 text-success';
+      }catch(err){
+        console.error('Error KML:',err);
+        msgEl.textContent='Error KML: '+err.message;msgEl.className='small mt-1 text-danger';
+      }finally{
+        // Pase lo que pase (éxito o error) SIEMPRE se cierra el overlay de carga
+        // y se limpia el input, para que la web nunca quede "trabada"
         showLoading(false);
-      }catch(err){msgEl.textContent='Error KML: '+err.message;msgEl.className='small mt-1 text-danger';showLoading(false);}
+        e.target.value='';
+      }
+    };
+    reader.onerror=function(){
+      console.error('Error leyendo el archivo KML:',reader.error);
+      msgEl.textContent='No se pudo leer el archivo.';msgEl.className='small mt-1 text-danger';
+      showLoading(false);e.target.value='';
     };
     reader.readAsText(file);
-  });
-  modalEl.addEventListener('hidden.bs.modal',()=>{if(mc.parentNode===document.body)document.body.removeChild(mc);});
+  },{once:true}); // evita listeners duplicados si el diálogo se abre más de una vez
+
+  modalEl.addEventListener('hidden.bs.modal',()=>{
+    if(mc.parentNode===document.body)document.body.removeChild(mc);
+    // Si el usuario canceló/cerró el modal sin confirmar, limpiar mensaje e input
+    // para que pueda volver a intentarlo (incluso con el mismo archivo)
+    if(!confirmed){
+      msgEl.textContent='';msgEl.className='small mt-1';
+      e.target.value='';
+    }
+  },{once:true});
 }
 
 // ─── Coord form ───────────────────────────────────────────────────────────────
@@ -3625,8 +3682,11 @@ function updateCategoryCheckboxes(){
   const container=document.getElementById('category-checkboxes');if(!container)return;
   container.innerHTML='';
   const counts={};
-  customCoords.forEach(c=>{const z=c.zone||selectedZone;const k=`${c.category}-${z}`;counts[k]=(counts[k]||0)+1;});
-  const uniq=[...new Set(customCoords.map(c=>c.category))];
+  // Protección extra: ignorar registros corruptos sin categoría válida, para que
+  // un dato dañado no rompa la lista de checkboxes de todas las categorías
+  const validCoords=customCoords.filter(c=>c&&typeof c.category==='string'&&c.category);
+  validCoords.forEach(c=>{const z=c.zone||selectedZone;const k=`${c.category}-${z}`;counts[k]=(counts[k]||0)+1;});
+  const uniq=[...new Set(validCoords.map(c=>c.category))];
 
   // Etiquetas cortas por categoría
   const shortName={'Zona sin Cobertura':'S/Cob','Sin FFTT':'S/FFTT','Zona Peligrosa':'Peligrosa','Dirección de Técnicos':'Técnicos'};
@@ -3716,8 +3776,11 @@ function updateCheckboxVisibility(){
 function renderCustomCoordsList(){
   const ul=document.getElementById('coord-list');ul.innerHTML='';
   customCoords.forEach(c=>{
+    // Protección extra: saltar cualquier registro corrupto (sin categoría o sin
+    // lat/lng numéricos) en vez de romper el resto de la lista
+    if(!c||typeof c.category!=='string'||!Number.isFinite(Number(c.lat))||!Number.isFinite(Number(c.lng)))return;
     const li=document.createElement('li');li.className='list-group-item d-flex justify-content-between align-items-center';
-    li.innerHTML=`<div>${c.category} (${c.lat.toFixed(4)}, ${c.lng.toFixed(4)})<br><small>${c.note||''}</small></div><button class="btn btn-sm btn-danger">&times;</button>`;
+    li.innerHTML=`<div>${c.category} (${Number(c.lat).toFixed(4)}, ${Number(c.lng).toFixed(4)})<br><small>${c.note||''}</small></div><button class="btn btn-sm btn-danger">&times;</button>`;
     li.querySelector('button').addEventListener('click',async()=>{
       customCoords=customCoords.filter(x=>x.id!==c.id);
       localStorage.setItem(`customCoords_${selectedZone}`,JSON.stringify(customCoords));
